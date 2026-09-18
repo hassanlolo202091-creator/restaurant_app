@@ -1,3 +1,5 @@
+from deep_translator import GoogleTranslator
+
 TRANSLATIONS = {
     "en": {
         "welcome": "Welcome to Our Restaurant",
@@ -38,18 +40,6 @@ TRANSLATIONS = {
         "date": "Date",
         "time": "Time",
         "reserve_now": "Reserve Now",
-        "items": {
-            "شاورما دجاج مع ثومية": "Chicken Shawarma with Garlic",
-            "برجر لحم مشوي": "Grilled Beef Burger",
-            "عصير برتقال طازج": "Fresh Orange Juice",
-            "لحم": "Meat",
-            "meat": "Meat",
-            "عصير ليمون": "Lemon Juice",
-            "دجاج": "Chicken",
-            "بيتزا": "Pizza",
-            "ماء": "Water",
-            "سلاطة": "Salad",
-        },
     },
     "ar": {
         "welcome": "مرحباً بكم في مطعمنا",
@@ -90,18 +80,6 @@ TRANSLATIONS = {
         "date": "التاريخ",
         "time": "الوقت",
         "reserve_now": "حجز الآن",
-        "items": {
-            "شاورما دجاج مع ثومية": "شاورما دجاج مع ثومية",
-            "برجر لحم مشوي": "برجر لحم مشوي",
-            "عصير برتقال طازج": "عصير برتقال طازج",
-            "لحم": "لحم",
-            "meat": "لحم",
-            "عصير ليمون": "عصير ليمون",
-            "دجاج": "دجاج",
-            "بيتزا": "بيتزا",
-            "ماء": "ماء",
-            "سلاطة": "سلاطة",
-        },
     },
     "ur": {
         "welcome": "ریسٹورانٹ میں خوش آمدید",
@@ -142,18 +120,6 @@ TRANSLATIONS = {
         "date": "تاریخ",
         "time": "وقت",
         "reserve_now": "ابھی بک کریں",
-        "items": {
-            "شاورما دجاج مع ثومية": "تومیا کے ساتھ چکن شاورما",
-            "برجر لحم مشوي": "گرل بیف برگر",
-            "عصير برتقال طازج": "تازہ مالٹے کا رس",
-            "لحم": "گوشت",
-            "meat": "گوشت",
-            "عصير ليمون": "لیمن جوس",
-            "دجاج": "مرغی",
-            "بيتزا": "پیزا",
-            "ماء": "پانی",
-            "سلاطة": "سلاد",
-        },
     },
     "hi": {
         "welcome": "रेस्तरां में आपका स्वागत है",
@@ -194,18 +160,6 @@ TRANSLATIONS = {
         "date": "तिथि",
         "time": "समय",
         "reserve_now": "अभी आरक्षित करें",
-        "items": {
-            "شاورما دجاج مع ثومية": "लहसुन के साथ चिकन शावरमा",
-            "برجر لحم مشوي": "ग्रिल्ड बीफ बर्गर",
-            "عصير برتقال طازج": "ताजा संतरे का रस",
-            "لحم": "मांस",
-            "meat": "मांस",
-            "عصير ليمون": "नींबू पानी",
-            "دجاج": "चिकन",
-            "بيتزا": "पिज्जा",
-            "ماء": "पानी",
-            "सलाطة": "सलाद",
-        },
     },
     "fil": {
         "welcome": "Maligayang pagdating sa Restaurant",
@@ -246,18 +200,6 @@ TRANSLATIONS = {
         "date": "Petsa",
         "time": "Oras",
         "reserve_now": "Mag-reserba Ngayon",
-        "items": {
-            "شاورما دجاج مع ثومية": "Chicken Shawarma na may Bawang",
-            "برجر لحم مشوي": "Inihaw na Beef Burger",
-            "عصير برتقال طازج": "Sariwang Juice ng Dalandan",
-            "لحم": "Karne",
-            "meat": "Karne",
-            "عصير ليمون": "Juice ng Lemon",
-            "دجاج": "Manok",
-            "بيتزا": "Pizza",
-            "ماء": "Tubig",
-            "سلاطة": "Salad",
-        },
     },
     "ru": {
         "welcome": "Добро пожаловать в ресторан",
@@ -298,18 +240,66 @@ TRANSLATIONS = {
         "date": "Дата",
         "time": "Время",
         "reserve_now": "Забронировать",
-        "items": {
-            "شاورما دجاج مع ثومية": "Куриная шаурма с чесноком",
-            "برجر لحم مشوي": "Говяжий бургер на гриле",
-            "عصير برتقال طازج": "Свежевыжатый апельсиновый сок",
-            "لحم": "Мясо",
-            "meat": "Мясо",
-            "عصير ليمون": "Лимонный сок",
-            "دجاج": "Курица",
-            "بيتزا": "Пицца",
-            "ماء": "Вода",
-            "سلاطة": "Салат",
-        },
+    },
+}
+
+# قاموس الوجبات الثابت (ثنائي الاتجاه)
+FOOD_ITEMS_MAP = {
+    "شاورما دجاج مع ثومية": {
+        "en": "Chicken Shawarma with Garlic",
+        "ar": "شاورما دجاج مع ثومية",
+        "ur": "تومیا کے ساتھ چکن شاورما",
+        "hi": "लहसुन के साथ चिकन शावरमा",
+        "fil": "Chicken Shawarma na may Bawang",
+        "ru": "Куриная шаурма с чесноком",
+    },
+    "برجر لحم مشوي": {
+        "en": "Grilled Beef Burger",
+        "ar": "برجر لحم مشوي",
+        "ur": "گرل بیف برگر",
+        "hi": "ग्रिल्ड बीफ बर्गर",
+        "fil": "Inihaw na Beef Burger",
+        "ru": "Говяжий бургер на гриле",
+    },
+    "عصير برتقال طازج": {
+        "en": "Fresh Orange Juice",
+        "ar": "عصير برتقال طازج",
+        "ur": "تازہ مالٹے کا رس",
+        "hi": "ताजा संतरे का रस",
+        "fil": "Sariwang Juice ng Dalandan",
+        "ru": "Свежевыжатый апельсиновый сок",
+    },
+    "لحم": {
+        "en": "Meat",
+        "ar": "لحم",
+        "ur": "گوشت",
+        "hi": "मांस",
+        "fil": "Karne",
+        "ru": "Мясо",
+    },
+    "meat": {
+        "en": "Meat",
+        "ar": "لحم",
+        "ur": "گوشت",
+        "hi": "मांस",
+        "fil": "Karne",
+        "ru": "Мясо",
+    },
+    "lemon": {
+        "en": "Lemon",
+        "ar": "ليمون",
+        "ur": "لیمن",
+        "hi": "नींबू",
+        "fil": "Lemon",
+        "ru": "Лимон",
+    },
+    "عصير ليمون": {
+        "en": "Lemon Juice",
+        "ar": "عصير ليمون",
+        "ur": "لیمن جوس",
+        "hi": "नींबू पानी",
+        "fil": "Juice ng Lemon",
+        "ru": "Лимонный сок",
     },
 }
 
@@ -320,8 +310,27 @@ def get_ui_text(key, lang_code="en"):
 
 
 def translate_item_from_dict(item_name, lang_code="en"):
-  if not item_name:
+  clean_name = str(item_name).strip()
+  if not clean_name:
     return ""
-  lang_data = TRANSLATIONS.get(lang_code, TRANSLATIONS["en"])
-  items_dict = lang_data.get("items", {})
-  return items_dict.get(str(item_name).strip(), str(item_name))
+
+  # 1. البحث في خريطة الوجبات الثابتة
+  if clean_name in FOOD_ITEMS_MAP:
+    return FOOD_ITEMS_MAP[clean_name].get(lang_code, clean_name)
+
+  # البحث العكسي إذا كانت الكلمة مكتوبة بلغة ثانية
+  for key, map_dict in FOOD_ITEMS_MAP.items():
+    if clean_name.lower() in [v.lower() for v in map_dict.values()]:
+      return map_dict.get(lang_code, clean_name)
+
+  # 2. إذا كانت الوجبة جديدة وغير موجودة بالقاموس، ترجمها فوراً عبر GoogleTranslator
+  try:
+    translated = GoogleTranslator(
+        source="auto", target=lang_code
+    ).translate(clean_name)
+    if translated:
+      return translated
+  except Exception:
+    pass
+
+  return clean_name
