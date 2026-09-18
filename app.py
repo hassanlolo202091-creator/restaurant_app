@@ -8,8 +8,7 @@ from data_manager import (
     RESERVATIONS_FILE,
 )
 from deep_translator import GoogleTranslator
-from languages import TRANSLATIONS
-
+from languages import get_item_name, get_ui_text
 st.set_page_config(
     page_title="Restaurant App", page_icon="🍔", layout="wide"
 )
@@ -112,7 +111,7 @@ else:
     curr = get_ui_text("curr")
 
     for item in menu_items:
-      display_name = translate_item(item["name"])
+      display_name = translate_item(item["name"], lang_code)
       c1, c2, c3 = st.columns([3, 2, 2])
 
       with c1:
