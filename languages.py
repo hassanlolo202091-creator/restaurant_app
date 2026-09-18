@@ -122,14 +122,14 @@ TRANSLATIONS = {
 }
 
 
-def get_ui_text(key, lang_code="ar"):
+def get_ui_text(key, lang_code="en"):
   lang_data = TRANSLATIONS.get(lang_code, TRANSLATIONS["en"])
   return lang_data.get(key, TRANSLATIONS["en"].get(key, key))
 
 
-def translate_item_from_dict(item_name, lang_code="ar"):
-  if lang_code == "ar" or not item_name:
+def translate_item_from_dict(item_name, lang_code="en"):
+  if not item_name:
     return item_name
-  lang_data = TRANSLATIONS.get(lang_code, {})
+  lang_data = TRANSLATIONS.get(lang_code, TRANSLATIONS["en"])
   items_dict = lang_data.get("items", {})
   return items_dict.get(item_name, item_name)
