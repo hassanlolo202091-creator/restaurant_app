@@ -1,5 +1,3 @@
-from deep_translator import GoogleTranslator
-
 TRANSLATIONS = {
     "ar": {
         "welcome": "مرحباً بكم في المطعم",
@@ -13,6 +11,12 @@ TRANSLATIONS = {
             "شاورما دجاج مع ثومية": "شاورما دجاج مع ثومية",
             "برجر لحم مشوي": "برجر لحم مشوي",
             "عصير برتقال طازج": "عصير برتقال طازج",
+            "لحم": "لحم",
+            "عصير ليمون": "عصير ليمون",
+            "دجاج": "دجاج",
+            "بيتزا": "بيتزا",
+            "ماء": "ماء",
+            "سلاطة": "سلاطة",
         },
     },
     "en": {
@@ -27,6 +31,12 @@ TRANSLATIONS = {
             "شاورما دجاج مع ثومية": "Chicken Shawarma with Garlic",
             "برجر لحم مشوي": "Grilled Beef Burger",
             "عصير برتقال طازج": "Fresh Orange Juice",
+            "لحم": "Meat",
+            "عصير ليمون": "Lemon Juice",
+            "دجاج": "Chicken",
+            "بيتزا": "Pizza",
+            "ماء": "Water",
+            "سلاطة": "Salad",
         },
     },
     "ur": {
@@ -41,6 +51,12 @@ TRANSLATIONS = {
             "شاورما دجاج مع ثومية": "تومیا کے ساتھ چکن شاورما",
             "برجر لحم مشوي": "گرل بیف برگر",
             "عصير برتقال طازج": "تازہ مالٹے کا رس",
+            "لحم": "گوشت",
+            "عصير ليمون": "لیمن جوس",
+            "دجاج": "مرغی",
+            "بيتزا": "پیزا",
+            "ماء": "پانی",
+            "سلاطة": "سلاد",
         },
     },
     "hi": {
@@ -55,6 +71,12 @@ TRANSLATIONS = {
             "شاورما دجاج مع ثومية": "लहसुन के साथ चिकन शावरमा",
             "برجر لحم مشوي": "ग्रिल्ड बीफ बर्गर",
             "عصير برتقال طازج": "ताजा संतरे का रस",
+            "لحم": "मांस",
+            "عصير ليمون": "नींबू पानी",
+            "دجاج": "चिकन",
+            "بيتزا": "पिज्जा",
+            "ماء": "पानी",
+            "सलाطة": "सलाद",
         },
     },
     "fil": {
@@ -69,6 +91,12 @@ TRANSLATIONS = {
             "شاورما دجاج مع ثومية": "Chicken Shawarma na may Bawang",
             "برجر لحم مشوي": "Inihaw na Beef Burger",
             "عصير برتقال طازج": "Sariwang Juice ng Dalandan",
+            "لحم": "Karne",
+            "عصير ليمون": "Juice ng Lemon",
+            "دجاج": "Manok",
+            "بيتزا": "Pizza",
+            "ماء": "Tubig",
+            "سلاطة": "Salad",
         },
     },
     "ru": {
@@ -83,6 +111,12 @@ TRANSLATIONS = {
             "شاورما دجاج مع ثومية": "Куриная шаурма с чесноком",
             "برجر لحم مشوي": "Говяжий бургер на гриле",
             "عصير برتقال طازج": "Свежевыжатый апельсиновый сок",
+            "لحم": "Мясо",
+            "عصير ليمون": "Лимонный сок",
+            "دجاج": "Курица",
+            "بيتزا": "Пицца",
+            "ماء": "Вода",
+            "سلاطة": "Салат",
         },
     },
 }
@@ -93,22 +127,9 @@ def get_ui_text(key, lang_code="ar"):
   return lang_data.get(key, TRANSLATIONS["en"].get(key, key))
 
 
-def get_item_name(item_arabic, lang_code="ar"):
-  # 1. إذا كانت اللغة هي العربية، اعد الاسم كما هو
-  if lang_code == "ar":
-    return item_arabic
-
-  # 2. البحث في القاموس الثابت للسرعة والدقة
+def translate_item_from_dict(item_name, lang_code="ar"):
+  if lang_code == "ar" or not item_name:
+    return item_name
   lang_data = TRANSLATIONS.get(lang_code, {})
   items_dict = lang_data.get("items", {})
-  if item_arabic in items_dict:
-    return items_dict[item_arabic]
-
-  # 3. إذا كانت الوجبة جديدة وغير موجودة بالقاموس، ترجمها فوراً تلقائياً
-  try:
-    translated = GoogleTranslator(
-        source="ar", target=lang_code
-    ).translate(item_arabic)
-    return translated
-  except Exception:
-    return item_arabic
+  return items_dict.get(item_name, item_name)
