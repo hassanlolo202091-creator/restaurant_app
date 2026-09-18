@@ -6,7 +6,6 @@ from languages import get_ui_text
 
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 
-# --- إدارة الملفات والبيانات ---
 ORDERS_FILE = "orders.json"
 RESERVATIONS_FILE = "reservations.json"
 MENU_FILE = "menu.json"
@@ -53,12 +52,12 @@ def delete_menu_item(item_id):
   save_data(MENU_FILE, menu)
 
 
-# --- دالة الترجمة الذكية للوجبات الجديده ---
+# دالة الترجمة التلقائية لجميع اللغات
 def translate_food_item(item_arabic, lang_code):
   if lang_code == "ar" or not item_arabic:
     return item_arabic
 
-  # 1. البحث في القاموس الثابت
+  # 1. القاموس الثابت
   from languages import TRANSLATIONS
 
   lang_data = TRANSLATIONS.get(lang_code, {})
@@ -66,13 +65,13 @@ def translate_food_item(item_arabic, lang_code):
   if item_arabic in items_dict:
     return items_dict[item_arabic]
 
-  # 2. البحث في الملف المحفوظ للترجمات التلقائية
+  # 2. ملف الترجمات التلقائية المحفوظة
   auto_trans = load_data(AUTO_TRANS_FILE, {})
   cache_key = f"{item_arabic}_{lang_code}"
   if cache_key in auto_trans:
     return auto_trans[cache_key]
 
-  # 3. الترجمة الفورية عبر GoogleTranslator وحفظ الناتج
+  # 3. الترجمة الآلية الفورية
   try:
     translated = GoogleTranslator(
         source="ar", target=lang_code
@@ -84,7 +83,6 @@ def translate_food_item(item_arabic, lang_code):
     return item_arabic
 
 
-# --- إعداد الجلسة واللغة ---
 if "cart" not in st.session_state:
   st.session_state.cart = {}
 
@@ -105,7 +103,6 @@ admin_mode = st.sidebar.checkbox("وضع الأدمن / Admin Mode 🔒")
 
 st.title(f"🍔 {get_ui_text('welcome', lang_code)}")
 
-# --- لوحة الأدمن ---
 if admin_mode:
   password = st.sidebar.text_input("كلمة السر / Password", type="password")
   if password == "1234":
@@ -177,7 +174,6 @@ if admin_mode:
   else:
     st.sidebar.error("كلمة السر خاطئة")
 
-# --- واجهة العميل ---
 else:
   cart_count = sum(st.session_state.cart.values())
   tab1, tab2, tab3 = st.tabs([
