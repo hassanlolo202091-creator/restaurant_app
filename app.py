@@ -1,12 +1,10 @@
 import json
 import os
 import streamlit as st
-from deep_translator import GoogleTranslator
-from languages import get_ui_text
+from languages import get_ui_text, translate_item_from_dict
 
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 
-# --- إدارة الملفات والبيانات ---
 ORDERS_FILE = "orders.json"
 RESERVATIONS_FILE = "reservations.json"
 MENU_FILE = "menu.json"
@@ -21,42 +19,9 @@ LANGUAGES = {
 }
 
 DEFAULT_MENU = [
-    {
-        "id": 1,
-        "price": 18.0,
-        "names": {
-            "ar": "شاورما دجاج مع ثومية",
-            "en": "Chicken Shawarma with Garlic",
-            "ur": "تومیا کے ساتھ چکن شاورما",
-            "hi": "लहसुन के साथ चिकन शावरमा",
-            "fil": "Chicken Shawarma na may Bawang",
-            "ru": "Куриная шаурма с чесноком",
-        },
-    },
-    {
-        "id": 2,
-        "price": 28.0,
-        "names": {
-            "ar": "برجر لحم مشوي",
-            "en": "Grilled Beef Burger",
-            "ur": "گرل بیف برگر",
-            "hi": "ग्रिल्ड बीफ बर्गर",
-            "fil": "Inihaw na Beef Burger",
-            "ru": "Говяжий бургер на гриле",
-        },
-    },
-    {
-        "id": 3,
-        "price": 12.0,
-        "names": {
-            "ar": "عصير برتقال طازج",
-            "en": "Fresh Orange Juice",
-            "ur": "تازہ مالٹے کا رس",
-            "hi": "ताजा संतरे का रस",
-            "fil": "Sariwang Juice ng Dalandan",
-            "ru": "Свежевыжатый апельсиновый сок",
-        },
-    },
+    {"id": 1, "name": "شاورما دجاج مع ثومية", "price": 18.0},
+    {"id": 2, "name": "برجر لحم مشوي", "price": 28.0},
+    {"id": 3, "name": "عصير برتقال طازج", "price": 12.0},
 ]
 
 
@@ -81,22 +46,7 @@ def get_menu():
   return load_data(MENU_FILE, DEFAULT_MENU)
 
 
-# دالة إضافة الوجبة وترجمتها فورياً لجميع اللغات مرة واحدة
-def add_menu_item_auto_translate(item_name, input_lang_code, price):
-  names_dict = {}
-
-  for lang_name, lang_code in LANGUAGES.items():
-    if lang_code == input_lang_code:
-      names_dict[lang_code] = item_name
-    else:
-      try:
-        translated = GoogleTranslator(
-            source=input_lang_code, target=lang_code
-        ).translate(item_name)
-        names_dict[lang_code] = translated if translated else item_name
-      except Exception:
-        names_dict[lang_code] = item_name
-
+def add_menu_item(name, price):
   menu = get_menu()
   new_id = (
       max(
@@ -105,10 +55,7 @@ def add_menu_item_auto_translate(item_name, input_lang_code, price):
       )
       + 1
   )
-
-  new_item = {"id": new_id, "price": float(price), "names": names_dict}
-
-  menu.append(new_item)
+  menu.append({"id": new_id, "name": name.strip(), "price": float(price)})
   save_data(MENU_FILE, menu)
 
 
@@ -122,15 +69,12 @@ def delete_menu_item(item_id):
   save_data(MENU_FILE, menu)
 
 
-# دالة الحصول على الاسم حسب اللغة المختارة
-def get_item_name_by_lang(item, lang_code):
+def get_item_name(item, lang_code):
   if isinstance(item, dict):
-    # إذا كانت الوجبة بالنظام الجديد المترجم المباشر
-    if "names" in item and isinstance(item["names"], dict):
-      return item["names"].get(lang_code, item["names"].get("ar", ""))
-    # إذا كانت وجبة قديمة (اسم عربي فقط)
-    return item.get("name", "")
-  return str(item)
+    raw_name = item.get("name", "")
+  else:
+    raw_name = str(item)
+  return translate_item_from_dict(raw_name, lang_code)
 
 
 # --- إعداد الجلسة واللغة ---
@@ -168,7 +112,8 @@ if admin_mode:
             st.write(f"**رقم الطاولة:** {o.get('table', 'سفري')}")
             st.write("**الأصناف:**")
             for item_name, qty in o.get("items", {}).items():
-              st.write(f"- {item_name} × {qty}")
+              disp = translate_item_from_dict(item_name, lang_code)
+              st.write(f"- {disp} × {qty}")
       else:
         st.info("لا توجد طلبات حتى الآن")
 
@@ -187,22 +132,16 @@ if admin_mode:
 
     with tab_admin3:
       st.subheader("إضافة وجبة جديدة")
-      col_a, col_b, col_c = st.columns([2, 2, 1])
+      col_a, col_b = st.columns([2, 1])
       with col_a:
-        admin_input_lang = st.selectbox(
-            "لغة كتابة اسم الوجبة", list(LANGUAGES.keys()), index=0
-        )
-        input_lang_code = LANGUAGES[admin_input_lang]
+        new_name = st.text_input("اسم الوجبة (بالعربية)")
       with col_b:
-        new_name = st.text_input("اسم الوجبة")
-      with col_c:
         new_price = st.number_input("السعر", min_value=1.0, value=20.0)
 
-      if st.button("إضافة الوجبة وتوليد الترجمات آلياً"):
+      if st.button("إضافة الوجبة للمنيو"):
         if new_name:
-          with st.spinner("جاري ترجمة الوجبة وحفظها بجميع اللغات..."):
-            add_menu_item_auto_translate(new_name, input_lang_code, new_price)
-          st.success(f"تمت إضافة {new_name} وترجمتها بنجاح لجميع اللغات!")
+          add_menu_item(new_name, new_price)
+          st.success(f"تمت إضافة {new_name} بنجاح!")
           st.rerun()
         else:
           st.warning("يرجى كتابة اسم الوجبة")
@@ -212,7 +151,7 @@ if admin_mode:
       current_menu = get_menu()
       for item in current_menu:
         c1, c2 = st.columns([3, 1])
-        disp_name = get_item_name_by_lang(item, lang_code)
+        disp_name = get_item_name(item, lang_code)
         item_id = item.get("id") if isinstance(item, dict) else None
         price = item.get("price", 0) if isinstance(item, dict) else 0
         with c1:
@@ -225,7 +164,7 @@ if admin_mode:
   else:
     st.sidebar.error("كلمة السر خاطئة")
 
-# --- واجهة الزبون العادية ---
+# --- واجهة الزبون ---
 else:
   cart_count = sum(st.session_state.cart.values())
   tab1, tab2, tab3 = st.tabs([
@@ -240,7 +179,7 @@ else:
     menu_items = get_menu()
 
     for item in menu_items:
-      display_name = get_item_name_by_lang(item, lang_code)
+      display_name = get_item_name(item, lang_code)
       price = item.get("price", 0) if isinstance(item, dict) else 0
       item_id = (
           item.get("id", display_name)
@@ -267,10 +206,15 @@ else:
         if st.button(
             get_ui_text("add_item", lang_code), key=f"btn_{item_id}"
         ):
-          if display_name in st.session_state.cart:
-            st.session_state.cart[display_name] += qty
+          raw_ar_name = (
+              item.get("name", display_name)
+              if isinstance(item, dict)
+              else display_name
+          )
+          if raw_ar_name in st.session_state.cart:
+            st.session_state.cart[raw_ar_name] += qty
           else:
-            st.session_state.cart[display_name] = qty
+            st.session_state.cart[raw_ar_name] = qty
           st.success(f"تمت إضافة {display_name}")
           st.rerun()
 
@@ -284,19 +228,18 @@ else:
       total_price = 0
       menu_items = get_menu()
 
-      price_dict = {}
-      for item in menu_items:
-        disp = get_item_name_by_lang(item, lang_code)
-        p = item.get("price", 0) if isinstance(item, dict) else 0
-        price_dict[disp] = p
+      price_dict = {
+          item.get("name", ""): item.get("price", 0)
+          for item in menu_items
+          if isinstance(item, dict)
+      }
 
-      for item_disp_name, quantity in st.session_state.cart.items():
-        price = price_dict.get(item_disp_name, 0)
+      for item_ar_name, quantity in st.session_state.cart.items():
+        disp_name = translate_item_from_dict(item_ar_name, lang_code)
+        price = price_dict.get(item_ar_name, 0)
         item_total = price * quantity
         total_price += item_total
-        st.write(
-            f"**{item_disp_name}** × {quantity} = {item_total:.1f} {curr}"
-        )
+        st.write(f"**{disp_name}** × {quantity} = {item_total:.1f} {curr}")
 
       st.markdown("---")
       st.subheader(f"{get_ui_text('total', lang_code)}: {total_price:.1f} {curr}")
