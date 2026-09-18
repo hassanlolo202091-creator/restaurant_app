@@ -10,6 +10,7 @@ st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 ORDERS_FILE = "orders.json"
 RESERVATIONS_FILE = "reservations.json"
 MENU_FILE = "menu.json"
+AUTO_TRANS_FILE = "auto_translations.json"
 
 DEFAULT_MENU = [
     {"id": 1, "name": "شاورما دجاج مع ثومية", "price": 18.0},
@@ -52,13 +53,12 @@ def delete_menu_item(item_id):
   save_data(MENU_FILE, menu)
 
 
-# --- دالة الترجمة الذكية للوجبات ---
-@st.cache_data
+# --- دالة الترجمة الذكية للوجبات الجديده ---
 def translate_food_item(item_arabic, lang_code):
   if lang_code == "ar" or not item_arabic:
     return item_arabic
 
-  # 1. البحث أولاً في القاموس الثابت المترجم مسبقاً
+  # 1. البحث في القاموس الثابت
   from languages import TRANSLATIONS
 
   lang_data = TRANSLATIONS.get(lang_code, {})
@@ -66,11 +66,20 @@ def translate_food_item(item_arabic, lang_code):
   if item_arabic in items_dict:
     return items_dict[item_arabic]
 
-  # 2. الترجمة الفورية التلقائية إذا كانت الوجبة جديدة
+  # 2. البحث في الملف المحفوظ للترجمات التلقائية
+  auto_trans = load_data(AUTO_TRANS_FILE, {})
+  cache_key = f"{item_arabic}_{lang_code}"
+  if cache_key in auto_trans:
+    return auto_trans[cache_key]
+
+  # 3. الترجمة الفورية عبر GoogleTranslator وحفظ الناتج
   try:
-    return GoogleTranslator(source="ar", target=lang_code).translate(
-        item_arabic
-    )
+    translated = GoogleTranslator(
+        source="ar", target=lang_code
+    ).translate(item_arabic)
+    auto_trans[cache_key] = translated
+    save_data(AUTO_TRANS_FILE, auto_trans)
+    return translated
   except Exception:
     return item_arabic
 
@@ -119,7 +128,8 @@ if admin_mode:
             st.write(f"**رقم الطاولة:** {o.get('table', 'سفري')}")
             st.write("**الأصناف:**")
             for item_name, qty in o.get("items", {}).items():
-              st.write(f"- {item_name} × {qty}")
+              disp_name = translate_food_item(item_name, lang_code)
+              st.write(f"- {disp_name} × {qty}")
       else:
         st.info("لا توجد طلبات حتى الآن")
 
