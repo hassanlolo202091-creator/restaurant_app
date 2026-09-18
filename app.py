@@ -1,7 +1,8 @@
 import json
 import os
+from deep_translator import GoogleTranslator
 import streamlit as st
-from languages import get_item_name, get_ui_text
+from languages import get_ui_text
 
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 
@@ -51,6 +52,29 @@ def delete_menu_item(item_id):
   save_data(MENU_FILE, menu)
 
 
+# --- دالة الترجمة الذكية للوجبات ---
+@st.cache_data
+def translate_food_item(item_arabic, lang_code):
+  if lang_code == "ar" or not item_arabic:
+    return item_arabic
+
+  # 1. البحث أولاً في القاموس الثابت المترجم مسبقاً
+  from languages import TRANSLATIONS
+
+  lang_data = TRANSLATIONS.get(lang_code, {})
+  items_dict = lang_data.get("items", {})
+  if item_arabic in items_dict:
+    return items_dict[item_arabic]
+
+  # 2. الترجمة الفورية التلقائية إذا كانت الوجبة جديدة
+  try:
+    return GoogleTranslator(source="ar", target=lang_code).translate(
+        item_arabic
+    )
+  except Exception:
+    return item_arabic
+
+
 # --- إعداد الجلسة واللغة ---
 if "cart" not in st.session_state:
   st.session_state.cart = {}
@@ -83,7 +107,6 @@ if admin_mode:
         ["الطلبات الواردة", "الحجوزات", "إدارة قائمة الطعام (المنيو)"]
     )
 
-    # 1. عرض الطلبات
     with tab_admin1:
       st.subheader("قائمة الطلبات الواردة")
       orders = load_data(ORDERS_FILE)
@@ -100,7 +123,6 @@ if admin_mode:
       else:
         st.info("لا توجد طلبات حتى الآن")
 
-    # 2. عرض الحجوزات
     with tab_admin2:
       st.subheader("قائمة الحجوزات")
       reservations = load_data(RESERVATIONS_FILE)
@@ -114,7 +136,6 @@ if admin_mode:
       else:
         st.info("لا توجد حجوزات حتى الآن")
 
-    # 3. إضافة وتعديل الوجبات
     with tab_admin3:
       st.subheader("إضافة وجبة جديدة")
       col_a, col_b = st.columns([2, 1])
@@ -161,7 +182,7 @@ else:
     menu_items = get_menu()
 
     for item in menu_items:
-      display_name = get_item_name(item["name"], lang_code)
+      display_name = translate_food_item(item["name"], lang_code)
       c1, c2, c3 = st.columns([3, 2, 2])
 
       with c1:
@@ -199,7 +220,7 @@ else:
       menu_dict = {item["name"]: item["price"] for item in get_menu()}
 
       for item_ar_name, quantity in st.session_state.cart.items():
-        item_disp_name = get_item_name(item_ar_name, lang_code)
+        item_disp_name = translate_food_item(item_ar_name, lang_code)
         price = menu_dict.get(item_ar_name, 0)
         item_total = price * quantity
         total_price += item_total
