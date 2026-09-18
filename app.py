@@ -1,17 +1,57 @@
+import json
+import os
 import streamlit as st
-from data_manager import (
-    add_menu_item,
-    add_order,
-    add_reservation,
-    delete_menu_item,
-    get_menu,
-    get_orders,
-    get_reservations,
-)
 from languages import get_item_name, get_ui_text
 
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 
+# --- إدارة الملفات والبيانات ---
+ORDERS_FILE = "orders.json"
+RESERVATIONS_FILE = "reservations.json"
+MENU_FILE = "menu.json"
+
+DEFAULT_MENU = [
+    {"id": 1, "name": "شاورما دجاج مع ثومية", "price": 18.0},
+    {"id": 2, "name": "برجر لحم مشوي", "price": 28.0},
+    {"id": 3, "name": "عصير برتقال طازج", "price": 12.0},
+]
+
+
+def load_data(file_path, default_val=None):
+  if default_val is None:
+    default_val = []
+  if not os.path.exists(file_path):
+    return default_val
+  try:
+    with open(file_path, "r", encoding="utf-8") as f:
+      return json.load(f)
+  except Exception:
+    return default_val
+
+
+def save_data(file_path, data):
+  with open(file_path, "w", encoding="utf-8") as f:
+    json.dump(data, f, ensure_ascii=False, indent=4)
+
+
+def get_menu():
+  return load_data(MENU_FILE, DEFAULT_MENU)
+
+
+def add_menu_item(name, price):
+  menu = get_menu()
+  new_id = max([item["id"] for item in menu], default=0) + 1
+  menu.append({"id": new_id, "name": name, "price": float(price)})
+  save_data(MENU_FILE, menu)
+
+
+def delete_menu_item(item_id):
+  menu = get_menu()
+  menu = [item for item in menu if item["id"] != item_id]
+  save_data(MENU_FILE, menu)
+
+
+# --- إعداد الجلسة واللغة ---
 if "cart" not in st.session_state:
   st.session_state.cart = {}
 
@@ -32,6 +72,7 @@ admin_mode = st.sidebar.checkbox("وضع الأدمن / Admin Mode 🔒")
 
 st.title(f"🍔 {get_ui_text('welcome', lang_code)}")
 
+# --- لوحة الأدمن ---
 if admin_mode:
   password = st.sidebar.text_input("كلمة السر / Password", type="password")
   if password == "1234":
@@ -42,10 +83,10 @@ if admin_mode:
         ["الطلبات الواردة", "الحجوزات", "إدارة قائمة الطعام (المنيو)"]
     )
 
-    # 1. الطلبات
+    # 1. عرض الطلبات
     with tab_admin1:
       st.subheader("قائمة الطلبات الواردة")
-      orders = get_orders()
+      orders = load_data(ORDERS_FILE)
       if orders:
         for idx, o in enumerate(reversed(orders), 1):
           with st.expander(
@@ -59,10 +100,10 @@ if admin_mode:
       else:
         st.info("لا توجد طلبات حتى الآن")
 
-    # 2. الحجوزات
+    # 2. عرض الحجوزات
     with tab_admin2:
       st.subheader("قائمة الحجوزات")
-      reservations = get_reservations()
+      reservations = load_data(RESERVATIONS_FILE)
       if reservations:
         for r in reversed(reservations):
           st.write(
@@ -73,7 +114,7 @@ if admin_mode:
       else:
         st.info("لا توجد حجوزات حتى الآن")
 
-    # 3. إدارة المنيو (إضافة وحذف)
+    # 3. إضافة وتعديل الوجبات
     with tab_admin3:
       st.subheader("إضافة وجبة جديدة")
       col_a, col_b = st.columns([2, 1])
@@ -105,8 +146,8 @@ if admin_mode:
   else:
     st.sidebar.error("كلمة السر خاطئة")
 
+# --- واجهة العميل ---
 else:
-  # واجهة الزبون العادية
   cart_count = sum(st.session_state.cart.values())
   tab1, tab2, tab3 = st.tabs([
       f"📜 {get_ui_text('main_menu', lang_code)}",
@@ -180,7 +221,10 @@ else:
               "items": st.session_state.cart,
               "total": total_price,
           }
-          add_order(order_data)
+          orders = load_data(ORDERS_FILE)
+          orders.append(order_data)
+          save_data(ORDERS_FILE, orders)
+
           st.session_state.cart = {}
           st.success("تم إرسال طلبك بنجاح! شكراً لك.")
           st.rerun()
@@ -203,7 +247,10 @@ else:
             "date": str(res_date),
             "time": str(res_time),
         }
-        add_reservation(res_data)
+        reservations = load_data(RESERVATIONS_FILE)
+        reservations.append(res_data)
+        save_data(RESERVATIONS_FILE, reservations)
+
         st.success("تم تأكيد حجز الطاولة بنجاح!")
       else:
         st.warning("يرجى إدخال اسم الحجز")
