@@ -270,12 +270,14 @@ else:
   with tab3:
     st.header(get_ui_text("reserve", lang_code))
 
-    res_name = st.text_input("  Reservation Name")
-    res_guests = st.number_input("  Guests", min_value=1, value=2)
-    res_date = st.date_input(" Date")
-    res_time = st.time_input(" Time")
+    res_name = st.text_input(get_ui_text("res_name", lang_code))
+    res_guests = st.number_input(
+        get_ui_text("guests_count", lang_code), min_value=1, value=2
+    )
+    res_date = st.date_input(get_ui_text("date", lang_code))
+    res_time = st.time_input(get_ui_text("time", lang_code))
 
-    if st.button("   Reserve Now"):
+    if st.button(get_ui_text("reserve_now", lang_code)):
       if res_name:
         res_data = {
             "name": res_name,
@@ -287,6 +289,6 @@ else:
         reservations.append(res_data)
         save_data(RESERVATIONS_FILE, reservations)
 
-        st.success("Table reserved successfully!")
+        st.success(get_ui_text("res_success", lang_code))
       else:
-        st.warning("Please enter the reservation name")
+        st.warning(get_ui_text("res_warn", lang_code))
