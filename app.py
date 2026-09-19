@@ -1,4 +1,4 @@
-json
+import json
 import os
 from deep_translator import GoogleTranslator
 from languages import get_ui_text
