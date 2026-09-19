@@ -89,7 +89,7 @@ def delete_menu_item(item_id):
   save_data(MENU_FILE, menu)
 
 
-# --- تهيئة الجلسة والمتغيرات للترجمة الفورية ---
+# --- تهيئة الجلسة ---
 if "app_language" not in st.session_state:
   st.session_state.app_language = None
 
@@ -103,7 +103,7 @@ if "input_en" not in st.session_state:
   st.session_state.input_en = ""
 
 
-# دوال التحديث المتبادل للترجمة الفورية أثناء الكتابة
+# دوال التحديث المتبادل للترجمة الفورية
 def on_ar_change():
   txt = st.session_state.input_ar.strip()
   if txt:
@@ -124,6 +124,15 @@ def on_en_change():
       ).translate(txt)
     except Exception:
       pass
+
+
+# دالة الإضافة الآمنة
+def handle_add_item(price):
+  if st.session_state.input_ar or st.session_state.input_en:
+    add_menu_item(st.session_state.input_ar, st.session_state.input_en, price)
+    st.session_state.input_ar = ""
+    st.session_state.input_en = ""
+    st.session_state.add_success = True
 
 
 # --- الواجهة العربية ---
@@ -177,39 +186,31 @@ def run_arabic_app():
 
       with tab_admin3:
         st.subheader("إضافة وجبة جديدة (ترجمة فورية تلقائية)")
+
+        if st.session_state.get("add_success"):
+          st.success("تمت إضافة الوجبة بنجاح!")
+          st.session_state.add_success = False
+
         col_ar, col_en, col_price = st.columns([2, 2, 1])
 
         with col_ar:
           st.text_input(
-              "اسم الوجبة (بالعربية)",
-              key="input_ar",
-              on_change=on_ar_change,
+              "اسم الوجبة (بالعربية)", key="input_ar", on_change=on_ar_change
           )
 
         with col_en:
           st.text_input(
-              "Item Name (English)",
-              key="input_en",
-              on_change=on_en_change,
+              "Item Name (English)", key="input_en", on_change=on_en_change
           )
 
         with col_price:
           new_price = st.number_input("السعر (درهم)", min_value=1.0, value=20.0)
 
-        if st.button("إضافة الوجبة"):
-          if st.session_state.input_ar or st.session_state.input_en:
-            add_menu_item(
-                st.session_state.input_ar,
-                st.session_state.input_en,
-                new_price,
-            )
-            st.success(f"تمت إضافة الوجبة بنجاح!")
-            # إعادة تعيين الخانات
-            st.session_state.input_ar = ""
-            st.session_state.input_en = ""
-            st.rerun()
-          else:
-            st.warning("يرجى إدخال اسم الوجبة بالعربية أو الإنجليزية")
+        st.button(
+            "إضافة الوجبة",
+            on_click=handle_add_item,
+            args=(new_price,),
+        )
 
         st.markdown("---")
         st.subheader("المنيو الحالي (حذف وجبة)")
@@ -389,38 +390,31 @@ def run_english_app():
 
       with tab_admin3:
         st.subheader("Add New Item (Live Auto-Translation)")
+
+        if st.session_state.get("add_success"):
+          st.success("Item added successfully!")
+          st.session_state.add_success = False
+
         col_ar, col_en, col_price = st.columns([2, 2, 1])
 
         with col_ar:
           st.text_input(
-              "اسم الوجبة (بالعربية)",
-              key="input_ar",
-              on_change=on_ar_change,
+              "اسم الوجبة (بالعربية)", key="input_ar", on_change=on_ar_change
           )
 
         with col_en:
           st.text_input(
-              "Item Name (English)",
-              key="input_en",
-              on_change=on_en_change,
+              "Item Name (English)", key="input_en", on_change=on_en_change
           )
 
         with col_price:
           new_price = st.number_input("Price (AED)", min_value=1.0, value=20.0)
 
-        if st.button("Add Item"):
-          if st.session_state.input_ar or st.session_state.input_en:
-            add_menu_item(
-                st.session_state.input_ar,
-                st.session_state.input_en,
-                new_price,
-            )
-            st.success("Item added successfully!")
-            st.session_state.input_ar = ""
-            st.session_state.input_en = ""
-            st.rerun()
-          else:
-            st.warning("Please enter item name")
+        st.button(
+            "Add Item",
+            on_click=handle_add_item,
+            args=(new_price,),
+        )
 
         st.markdown("---")
         st.subheader("Current Menu (Delete Item)")
