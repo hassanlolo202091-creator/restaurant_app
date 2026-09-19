@@ -1,7 +1,8 @@
-import json
+json
 import os
+from deep_translator import GoogleTranslator
+from languages import get_ui_text
 import streamlit as st
-from languages import get_ui_text, translate_item_from_dict
 
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 
@@ -19,9 +20,42 @@ LANGUAGES = {
 }
 
 DEFAULT_MENU = [
-    {"id": 1, "name": "شاورما دجاج مع ثومية", "price": 18.0},
-    {"id": 2, "name": "برجر لحم مشوي", "price": 28.0},
-    {"id": 3, "name": "عصير برتقال طازج", "price": 12.0},
+    {
+        "id": 1,
+        "price": 18.0,
+        "names": {
+            "ar": "شاورما دجاج مع ثومية",
+            "en": "Chicken Shawarma with Garlic",
+            "ur": "تومیا کے ساتھ چکن شاورما",
+            "hi": "लहसुन के साथ चिकन शावरमा",
+            "fil": "Chicken Shawarma na may Bawang",
+            "ru": "Куриная шаурма с чесноком",
+        },
+    },
+    {
+        "id": 2,
+        "price": 28.0,
+        "names": {
+            "ar": "برجر لحم مشوي",
+            "en": "Grilled Beef Burger",
+            "ur": "گرل بیف برگر",
+            "hi": "ग्रिल्ड बीफ बर्गर",
+            "fil": "Inihaw na Beef Burger",
+            "ru": "Говяжий бургер на гриле",
+        },
+    },
+    {
+        "id": 3,
+        "price": 12.0,
+        "names": {
+            "ar": "عصير برتقال طازج",
+            "en": "Fresh Orange Juice",
+            "ur": "تازہ مالٹے کا رس",
+            "hi": "ताजा संतरे का रस",
+            "fil": "Sariwang Juice ng Dalandan",
+            "ru": "Свежевыжатый апельсиновый сок",
+        },
+    },
 ]
 
 
@@ -46,7 +80,21 @@ def get_menu():
   return load_data(MENU_FILE, DEFAULT_MENU)
 
 
-def add_menu_item(name, price):
+def add_menu_item(name, input_lang_code, price):
+  names_dict = {}
+  # الترجمة التلقائية الفورية لجميع اللغات لحفظ القاموس في menu.json
+  for lang_name, code in LANGUAGES.items():
+    if code == input_lang_code:
+      names_dict[code] = name.strip()
+    else:
+      try:
+        translated = GoogleTranslator(
+            source=input_lang_code, target=code
+        ).translate(name.strip())
+        names_dict[code] = translated if translated else name.strip()
+      except Exception:
+        names_dict[code] = name.strip()
+
   menu = get_menu()
   new_id = (
       max(
@@ -55,7 +103,7 @@ def add_menu_item(name, price):
       )
       + 1
   )
-  menu.append({"id": new_id, "name": name.strip(), "price": float(price)})
+  menu.append({"id": new_id, "price": float(price), "names": names_dict})
   save_data(MENU_FILE, menu)
 
 
@@ -71,10 +119,11 @@ def delete_menu_item(item_id):
 
 def get_item_name(item, lang_code):
   if isinstance(item, dict):
-    raw_name = item.get("name", "")
-  else:
-    raw_name = str(item)
-  return translate_item_from_dict(raw_name, lang_code)
+    names = item.get("names", {})
+    if isinstance(names, dict):
+      return names.get(lang_code, names.get("en", item.get("name", "")))
+    return item.get("name", "")
+  return str(item)
 
 
 # --- إعداد الجلسة واللغة الافتراضية ---
@@ -87,9 +136,7 @@ selected_lang_name = st.sidebar.selectbox(
 )
 lang_code = LANGUAGES[selected_lang_name]
 
-admin_mode = st.sidebar.checkbox(
-    f"{get_ui_text('admin_mode', lang_code)} 🔒"
-)
+admin_mode = st.sidebar.checkbox(f"{get_ui_text('admin_mode', lang_code)} 🔒")
 
 st.title(f"🍔 {get_ui_text('welcome', lang_code)}")
 
@@ -123,8 +170,7 @@ if admin_mode:
             )
             st.write(f"**{get_ui_text('main_menu', lang_code)}:**")
             for item_name, qty in o.get("items", {}).items():
-              disp = translate_item_from_dict(item_name, lang_code)
-              st.write(f"- {disp} × {qty}")
+              st.write(f"- {item_name} × {qty}")
       else:
         st.info(get_ui_text("no_orders", lang_code))
 
@@ -145,20 +191,26 @@ if admin_mode:
 
     with tab_admin3:
       st.subheader(get_ui_text("add_new", lang_code))
-      col_a, col_b = st.columns([2, 1])
-      with col_a:
-        # إتاحة إدخال الوجبة بأي لغة يرغب بها الأدمن
-        new_name = st.text_input(
-            f"{get_ui_text('item_name_input', lang_code)} ({get_ui_text('language', lang_code)})"
+      col_lang, col_name, col_price = st.columns([1.5, 2, 1])
+
+      with col_lang:
+        input_lang_name = st.selectbox(
+            get_ui_text("input_lang", lang_code), list(LANGUAGES.keys())
         )
-      with col_b:
+        input_lang_code = LANGUAGES[input_lang_name]
+
+      with col_name:
+        new_name = st.text_input(get_ui_text("item_name_input", lang_code))
+
+      with col_price:
         new_price = st.number_input(
             get_ui_text("price_input", lang_code), min_value=1.0, value=20.0
         )
 
       if st.button(get_ui_text("add_btn", lang_code)):
         if new_name:
-          add_menu_item(new_name, new_price)
+          with st.spinner("Translating & Saving..."):
+            add_menu_item(new_name, input_lang_code, new_price)
           st.success("OK")
           st.rerun()
         else:
@@ -228,15 +280,10 @@ else:
         if st.button(
             get_ui_text("add_item", lang_code), key=f"btn_{item_id}"
         ):
-          raw_ar_name = (
-              item.get("name", display_name)
-              if isinstance(item, dict)
-              else display_name
-          )
-          if raw_ar_name in st.session_state.cart:
-            st.session_state.cart[raw_ar_name] += qty
+          if display_name in st.session_state.cart:
+            st.session_state.cart[display_name] += qty
           else:
-            st.session_state.cart[raw_ar_name] = qty
+            st.session_state.cart[display_name] = qty
           st.success(f"{get_ui_text('add_item', lang_code)}: {display_name}")
           st.rerun()
 
@@ -251,17 +298,18 @@ else:
       menu_items = get_menu()
 
       price_dict = {
-          item.get("name", ""): item.get("price", 0)
+          get_item_name(item, lang_code): item.get("price", 0)
           for item in menu_items
           if isinstance(item, dict)
       }
 
-      for item_ar_name, quantity in st.session_state.cart.items():
-        disp_name = translate_item_from_dict(item_ar_name, lang_code)
-        price = price_dict.get(item_ar_name, 0)
+      for item_disp_name, quantity in st.session_state.cart.items():
+        price = price_dict.get(item_disp_name, 0)
         item_total = price * quantity
         total_price += item_total
-        st.write(f"**{disp_name}** × {quantity} = {item_total:.1f} {curr}")
+        st.write(
+            f"**{item_disp_name}** × {quantity} = {item_total:.1f} {curr}"
+        )
 
       st.markdown("---")
       st.subheader(f"{get_ui_text('total', lang_code)}: {total_price:.1f} {curr}")
