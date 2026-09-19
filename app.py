@@ -9,6 +9,15 @@ ORDERS_FILE = "orders.json"
 RESERVATIONS_FILE = "reservations.json"
 MENU_FILE = "menu.json"
 
+LANGUAGES = {
+    "English": "en",
+    "العربية": "ar",
+    "اردو": "ur",
+    "हिन्दी": "hi",
+    "Filipino": "fil",
+    "Русский": "ru",
+}
+
 DEFAULT_MENU = [
     {
         "id": 1,
@@ -31,7 +40,6 @@ DEFAULT_MENU = [
 ]
 
 
-# --- دوال التعامل مع البيانات ---
 def load_data(file_path, default_val=None):
   if default_val is None:
     default_val = []
@@ -51,6 +59,32 @@ def save_data(file_path, data):
 
 def get_menu():
   return load_data(MENU_FILE, DEFAULT_MENU)
+
+
+# دالة إحضار اسم الوجبة وتلقائياً تترجم أونلاين لو الوجبة قديمة في المنيو
+def get_display_name(item, lang_code):
+  if not isinstance(item, dict):
+    return str(item)
+
+  # لو الوجبة بالقاموس الجديد المتعدد اللغات
+  if lang_code == "ar" and "name_ar" in item:
+    return item["name_ar"]
+  if lang_code == "en" and "name_en" in item:
+    return item["name_en"]
+
+  # لو الوجبة مخزنة باسم قديم "name"
+  raw_name = item.get("name", item.get("name_ar", item.get("name_en", "")))
+  if not raw_name:
+    return ""
+
+  if lang_code == "ar":
+    return raw_name
+
+  # ترجمة فورية حية لو الكلمة باللغة العربية والواجهة إنجليزي
+  try:
+    return GoogleTranslator(source="auto", target=lang_code).translate(raw_name)
+  except Exception:
+    return raw_name
 
 
 def add_menu_item_auto(name, price, input_lang):
@@ -95,7 +129,7 @@ def delete_menu_item(item_id):
   save_data(MENU_FILE, menu)
 
 
-# --- تهيئة الجلسة اختيار اللغة ---
+# --- تهيئة الجلسة ---
 if "app_language" not in st.session_state:
   st.session_state.app_language = None
 
@@ -103,9 +137,7 @@ if "cart" not in st.session_state:
   st.session_state.cart = {}
 
 
-# ==========================================
-# 1. الواجهة العربية المستقلة بالكامل (run_arabic_app)
-# ==========================================
+# --- الواجهة العربية ---
 def run_arabic_app():
   st.sidebar.title("الخيارات 🌐")
   if st.sidebar.button("تغيير اللغة / Change Language"):
@@ -113,10 +145,8 @@ def run_arabic_app():
     st.rerun()
 
   admin_mode = st.sidebar.checkbox("وضع الأدمن 🔒")
-
   st.title("🍔 مرحباً بكم في المطعم")
 
-  # --- لوحة الأدمن بالعربية ---
   if admin_mode:
     password = st.sidebar.text_input("كلمة السر", type="password")
     if password == "1234":
@@ -172,7 +202,7 @@ def run_arabic_app():
         if st.button("إضافة الوجبة"):
           if new_name:
             add_menu_item_auto(new_name, new_price, lang_code_input)
-            st.success(f"تمت إضافة {new_name} بنجاح وترجمتها آلياً!")
+            st.success(f"تمت إضافة {new_name} بنجاح!")
             st.rerun()
           else:
             st.warning("يرجى كتابة اسم الوجبة")
@@ -182,11 +212,7 @@ def run_arabic_app():
         current_menu = get_menu()
         for item in current_menu:
           c1, c2 = st.columns([3, 1])
-          disp_name = (
-              item.get("name_ar")
-              if isinstance(item, dict) and "name_ar" in item
-              else item.get("name", "")
-          )
+          disp_name = get_display_name(item, "ar")
           item_id = item.get("id") if isinstance(item, dict) else None
           price = item.get("price", 0) if isinstance(item, dict) else 0
           with c1:
@@ -199,7 +225,6 @@ def run_arabic_app():
     else:
       st.sidebar.error("كلمة السر خاطئة")
 
-  # --- واجهة الزبون بالعربية ---
   else:
     cart_count = sum(st.session_state.cart.values())
     tab1, tab2, tab3 = st.tabs([
@@ -213,11 +238,7 @@ def run_arabic_app():
       menu_items = get_menu()
 
       for item in menu_items:
-        display_name = (
-            item.get("name_ar")
-            if isinstance(item, dict) and "name_ar" in item
-            else item.get("name", "")
-        )
+        display_name = get_display_name(item, "ar")
         price = item.get("price", 0) if isinstance(item, dict) else 0
         item_id = (
             item.get("id", display_name)
@@ -254,11 +275,7 @@ def run_arabic_app():
         total_price = 0
         menu_items = get_menu()
         price_dict = {
-            (
-                item.get("name_ar")
-                if isinstance(item, dict) and "name_ar" in item
-                else item.get("name", "")
-            ): item.get("price", 0)
+            get_display_name(item, "ar"): item.get("price", 0)
             for item in menu_items
             if isinstance(item, dict)
         }
@@ -317,9 +334,7 @@ def run_arabic_app():
           st.warning("يرجى إدخال اسم الحجز")
 
 
-# ==========================================
-# 2. الواجهة الإنجليزية المستقلة بالكامل (run_english_app)
-# ==========================================
+# --- الواجهة الإنجليزية ---
 def run_english_app():
   st.sidebar.title("Options 🌐")
   if st.sidebar.button("Change Language / تغيير اللغة"):
@@ -327,10 +342,8 @@ def run_english_app():
     st.rerun()
 
   admin_mode = st.sidebar.checkbox("Admin Mode 🔒")
-
   st.title("🍔 Welcome to the Restaurant")
 
-  # --- Admin Dashboard in English ---
   if admin_mode:
     password = st.sidebar.text_input("Password", type="password")
     if password == "1234":
@@ -386,7 +399,7 @@ def run_english_app():
         if st.button("Add Item"):
           if new_name:
             add_menu_item_auto(new_name, new_price, lang_code_input)
-            st.success(f"Added {new_name} successfully with auto-translation!")
+            st.success(f"Added {new_name} successfully!")
             st.rerun()
           else:
             st.warning("Please enter item name")
@@ -396,11 +409,7 @@ def run_english_app():
         current_menu = get_menu()
         for item in current_menu:
           c1, c2 = st.columns([3, 1])
-          disp_name = (
-              item.get("name_en")
-              if isinstance(item, dict) and "name_en" in item
-              else item.get("name", "")
-          )
+          disp_name = get_display_name(item, "en")
           item_id = item.get("id") if isinstance(item, dict) else None
           price = item.get("price", 0) if isinstance(item, dict) else 0
           with c1:
@@ -413,7 +422,6 @@ def run_english_app():
     else:
       st.sidebar.error("Wrong password")
 
-  # --- Customer View in English ---
   else:
     cart_count = sum(st.session_state.cart.values())
     tab1, tab2, tab3 = st.tabs([
@@ -427,11 +435,7 @@ def run_english_app():
       menu_items = get_menu()
 
       for item in menu_items:
-        display_name = (
-            item.get("name_en")
-            if isinstance(item, dict) and "name_en" in item
-            else item.get("name", "")
-        )
+        display_name = get_display_name(item, "en")
         price = item.get("price", 0) if isinstance(item, dict) else 0
         item_id = (
             item.get("id", display_name)
@@ -468,11 +472,7 @@ def run_english_app():
         total_price = 0
         menu_items = get_menu()
         price_dict = {
-            (
-                item.get("name_en")
-                if isinstance(item, dict) and "name_en" in item
-                else item.get("name", "")
-            ): item.get("price", 0)
+            get_display_name(item, "en"): item.get("price", 0)
             for item in menu_items
             if isinstance(item, dict)
         }
@@ -502,7 +502,7 @@ def run_english_app():
             save_data(ORDERS_FILE, orders)
 
             st.session_state.cart = {}
-            st.success("Order submitted successfully! Thank you.")
+            st.success("Order submitted successfully!")
             st.rerun()
           else:
             st.warning("Please enter your name to confirm order")
@@ -531,9 +531,7 @@ def run_english_app():
           st.warning("Please enter reservation name")
 
 
-# ==========================================
-# 3. شاشة التوجيه الرئيسية (Routing Logic)
-# ==========================================
+# --- التحكم للشاشة الرئيسية ---
 if st.session_state.app_language is None:
   st.markdown("<br><br>", unsafe_allow_html=True)
   st.title("🌐 Select Language / اختر اللغة")
@@ -542,16 +540,12 @@ if st.session_state.app_language is None:
   col1, col2 = st.columns(2)
 
   with col1:
-    if st.button(
-        "🇬🇧 English", use_container_width=True, type="primary"
-    ):
+    if st.button("🇬🇧 English", use_container_width=True, type="primary"):
       st.session_state.app_language = "en"
       st.rerun()
 
   with col2:
-    if st.button(
-        "🇦🇪 العربية", use_container_width=True, type="primary"
-    ):
+    if st.button("🇦🇪 العربية", use_container_width=True, type="primary"):
       st.session_state.app_language = "ar"
       st.rerun()
 
