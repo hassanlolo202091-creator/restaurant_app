@@ -77,7 +77,7 @@ def get_item_name(item, lang_code):
   return translate_item_from_dict(raw_name, lang_code)
 
 
-# --- إعداد الجلسة واللغة الافتراضية (الإنجليزية) ---
+# --- إعداد الجلسة واللغة الافتراضية ---
 if "cart" not in st.session_state:
   st.session_state.cart = {}
 
@@ -147,7 +147,10 @@ if admin_mode:
       st.subheader(get_ui_text("add_new", lang_code))
       col_a, col_b = st.columns([2, 1])
       with col_a:
-        new_name = st.text_input(get_ui_text("item_name_input", lang_code))
+        # إتاحة إدخال الوجبة بأي لغة يرغب بها الأدمن
+        new_name = st.text_input(
+            f"{get_ui_text('item_name_input', lang_code)} ({get_ui_text('language', lang_code)})"
+        )
       with col_b:
         new_price = st.number_input(
             get_ui_text("price_input", lang_code), min_value=1.0, value=20.0
