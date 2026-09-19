@@ -267,7 +267,7 @@ else:
         else:
           st.warning("يرجى كتابة الاسم لتأكيد الطلب")
 
-  with tab3:
+ with tab3:
     st.header(get_ui_text("reserve", lang_code))
 
     res_name = st.text_input(get_ui_text("res_name", lang_code))
