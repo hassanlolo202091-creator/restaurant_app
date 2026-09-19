@@ -61,44 +61,49 @@ def get_menu():
   return load_data(MENU_FILE, DEFAULT_MENU)
 
 
-# دالة إحضار اسم الوجبة وتلقائياً تترجم أونلاين لو الوجبة قديمة في المنيو
+# دالة إحضار الاسم وتضمن الترجمة الحية دائماً حسب اللغة المختارة
 def get_display_name(item, lang_code):
   if not isinstance(item, dict):
     return str(item)
 
-  # لو الوجبة بالقاموس الجديد المتعدد اللغات
-  if lang_code == "ar" and "name_ar" in item:
+  # 1. إذا كانت الوجبة محددة بـ name_ar و name_en جاهزة
+  if lang_code == "ar" and item.get("name_ar"):
     return item["name_ar"]
-  if lang_code == "en" and "name_en" in item:
+  if lang_code == "en" and item.get("name_en"):
     return item["name_en"]
 
-  # لو الوجبة مخزنة باسم قديم "name"
+  # 2. في حالة البيانات القديمة المسجلة تحت مفتاح "name" أو نصوص أحادية
   raw_name = item.get("name", item.get("name_ar", item.get("name_en", "")))
   if not raw_name:
     return ""
 
-  if lang_code == "ar":
-    return raw_name
-
-  # ترجمة فورية حية لو الكلمة باللغة العربية والواجهة إنجليزي
   try:
-    return GoogleTranslator(source="auto", target=lang_code).translate(raw_name)
+    translated = GoogleTranslator(source="auto", target=lang_code).translate(
+        raw_name
+    )
+    return translated if translated else raw_name
   except Exception:
     return raw_name
 
 
+# دالة إضافة الوجبة مع الترجمة المباشرة للاتجاهين
 def add_menu_item_auto(name, price, input_lang):
   name_clean = name.strip()
+
   if input_lang == "ar":
     name_ar = name_clean
     try:
       name_en = GoogleTranslator(source="ar", target="en").translate(name_clean)
+      if not name_en:
+        name_en = name_clean
     except Exception:
       name_en = name_clean
   else:
     name_en = name_clean
     try:
       name_ar = GoogleTranslator(source="en", target="ar").translate(name_clean)
+      if not name_ar:
+        name_ar = name_clean
     except Exception:
       name_ar = name_clean
 
