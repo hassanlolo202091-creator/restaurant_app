@@ -270,12 +270,12 @@ else:
   with tab3:
     st.header(get_ui_text("reserve", lang_code))
 
-    res_name = st.text_input("اسم الحجز / Reservation Name")
-    res_guests = st.number_input("عدد الأفراد / Guests", min_value=1, value=2)
-    res_date = st.date_input("التاريخ / Date")
-    res_time = st.time_input("الوقت / Time")
+    res_name = st.text_input("  Reservation Name")
+    res_guests = st.number_input("  Guests", min_value=1, value=2)
+    res_date = st.date_input(" Date")
+    res_time = st.time_input(" Time")
 
-    if st.button("حجز الآن / Reserve Now"):
+    if st.button("   Reserve Now"):
       if res_name:
         res_data = {
             "name": res_name,
@@ -287,6 +287,6 @@ else:
         reservations.append(res_data)
         save_data(RESERVATIONS_FILE, reservations)
 
-        st.success("تم تأكيد حجز الطاولة بنجاح!")
+        st.success("Table reserved successfully!")
       else:
-        st.warning("يرجى إدخال اسم الحجز")
+        st.warning("Please enter the reservation name")
