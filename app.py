@@ -61,7 +61,28 @@ def get_display_name(item, lang_code):
     return item.get("name_en") or item.get("name_ar") or item.get("name", "")
 
 
-def add_menu_item(name_ar, name_en, price):
+# دالة إضافة الوجبة والترجمة الآلية المباشرة عند الضغط على الزر
+def add_menu_item_auto_on_click(name_input, price):
+  name_clean = name_input.strip()
+  if not name_clean:
+    return False
+
+  try:
+    translated = GoogleTranslator(source="auto", target="en").translate(
+        name_clean
+    )
+    if translated.lower() == name_clean.lower():
+      # إذا كان النص المدخل بالإنجليزية، نترجمه للعربية
+      name_en = name_clean
+      name_ar = GoogleTranslator(source="en", target="ar").translate(name_clean)
+    else:
+      # إذا كان النص المدخل بالعربية، نعتمد الترجمة الإنجليزية
+      name_ar = name_clean
+      name_en = translated
+  except Exception:
+    name_ar = name_clean
+    name_en = name_clean
+
   menu = get_menu()
   new_id = (
       max(
@@ -72,11 +93,12 @@ def add_menu_item(name_ar, name_en, price):
   )
   menu.append({
       "id": new_id,
-      "name_ar": name_ar.strip(),
-      "name_en": name_en.strip() if name_en else name_ar.strip(),
+      "name_ar": name_ar,
+      "name_en": name_en,
       "price": float(price),
   })
   save_data(MENU_FILE, menu)
+  return True
 
 
 def delete_menu_item(item_id):
@@ -95,44 +117,6 @@ if "app_language" not in st.session_state:
 
 if "cart" not in st.session_state:
   st.session_state.cart = {}
-
-if "input_ar" not in st.session_state:
-  st.session_state.input_ar = ""
-
-if "input_en" not in st.session_state:
-  st.session_state.input_en = ""
-
-
-# دوال التحديث المتبادل للترجمة الفورية
-def on_ar_change():
-  txt = st.session_state.input_ar.strip()
-  if txt:
-    try:
-      st.session_state.input_en = GoogleTranslator(
-          source="ar", target="en"
-      ).translate(txt)
-    except Exception:
-      pass
-
-
-def on_en_change():
-  txt = st.session_state.input_en.strip()
-  if txt:
-    try:
-      st.session_state.input_ar = GoogleTranslator(
-          source="en", target="ar"
-      ).translate(txt)
-    except Exception:
-      pass
-
-
-# دالة الإضافة الآمنة
-def handle_add_item(price):
-  if st.session_state.input_ar or st.session_state.input_en:
-    add_menu_item(st.session_state.input_ar, st.session_state.input_en, price)
-    st.session_state.input_ar = ""
-    st.session_state.input_en = ""
-    st.session_state.add_success = True
 
 
 # --- الواجهة العربية ---
@@ -185,32 +169,23 @@ def run_arabic_app():
           st.info("لا توجد حجوزات حتى الآن")
 
       with tab_admin3:
-        st.subheader("إضافة وجبة جديدة (ترجمة فورية تلقائية)")
+        st.subheader("إضافة وجبة جديدة")
+        col_input, col_price = st.columns([3, 1])
 
-        if st.session_state.get("add_success"):
-          st.success("تمت إضافة الوجبة بنجاح!")
-          st.session_state.add_success = False
-
-        col_ar, col_en, col_price = st.columns([2, 2, 1])
-
-        with col_ar:
-          st.text_input(
-              "اسم الوجبة (بالعربية)", key="input_ar", on_change=on_ar_change
-          )
-
-        with col_en:
-          st.text_input(
-              "Item Name (English)", key="input_en", on_change=on_en_change
-          )
+        with col_input:
+          item_name_input = st.text_input("اسم الوجبة (عربي أو English)")
 
         with col_price:
           new_price = st.number_input("السعر (درهم)", min_value=1.0, value=20.0)
 
-        st.button(
-            "إضافة الوجبة",
-            on_click=handle_add_item,
-            args=(new_price,),
-        )
+        if st.button("إضافة الوجبة"):
+          if item_name_input:
+            with st.spinner("جاري الترجمة والحفظ..."):
+              add_menu_item_auto_on_click(item_name_input, new_price)
+            st.success("تمت إضافة الوجبة وترجمتها آلياً بنجاح!")
+            st.rerun()
+          else:
+            st.warning("يرجى إدخال اسم الوجبة")
 
         st.markdown("---")
         st.subheader("المنيو الحالي (حذف وجبة)")
@@ -389,32 +364,23 @@ def run_english_app():
           st.info("No reservations yet")
 
       with tab_admin3:
-        st.subheader("Add New Item (Live Auto-Translation)")
+        st.subheader("Add New Menu Item")
+        col_input, col_price = st.columns([3, 1])
 
-        if st.session_state.get("add_success"):
-          st.success("Item added successfully!")
-          st.session_state.add_success = False
-
-        col_ar, col_en, col_price = st.columns([2, 2, 1])
-
-        with col_ar:
-          st.text_input(
-              "اسم الوجبة (بالعربية)", key="input_ar", on_change=on_ar_change
-          )
-
-        with col_en:
-          st.text_input(
-              "Item Name (English)", key="input_en", on_change=on_en_change
-          )
+        with col_input:
+          item_name_input = st.text_input("Item Name (English or Arabic)")
 
         with col_price:
           new_price = st.number_input("Price (AED)", min_value=1.0, value=20.0)
 
-        st.button(
-            "Add Item",
-            on_click=handle_add_item,
-            args=(new_price,),
-        )
+        if st.button("Add Item"):
+          if item_name_input:
+            with st.spinner("Translating & Saving..."):
+              add_menu_item_auto_on_click(item_name_input, new_price)
+            st.success("Item added and auto-translated successfully!")
+            st.rerun()
+          else:
+            st.warning("Please enter item name")
 
         st.markdown("---")
         st.subheader("Current Menu (Delete Item)")
