@@ -1,5 +1,6 @@
 import json
 import os
+from deep_translator import GoogleTranslator
 import streamlit as st
 
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
@@ -88,12 +89,41 @@ def delete_menu_item(item_id):
   save_data(MENU_FILE, menu)
 
 
-# --- تهيئة الجلسة ---
+# --- تهيئة الجلسة والمتغيرات للترجمة الفورية ---
 if "app_language" not in st.session_state:
   st.session_state.app_language = None
 
 if "cart" not in st.session_state:
   st.session_state.cart = {}
+
+if "input_ar" not in st.session_state:
+  st.session_state.input_ar = ""
+
+if "input_en" not in st.session_state:
+  st.session_state.input_en = ""
+
+
+# دوال التحديث المتبادل للترجمة الفورية أثناء الكتابة
+def on_ar_change():
+  txt = st.session_state.input_ar.strip()
+  if txt:
+    try:
+      st.session_state.input_en = GoogleTranslator(
+          source="ar", target="en"
+      ).translate(txt)
+    except Exception:
+      pass
+
+
+def on_en_change():
+  txt = st.session_state.input_en.strip()
+  if txt:
+    try:
+      st.session_state.input_ar = GoogleTranslator(
+          source="en", target="ar"
+      ).translate(txt)
+    except Exception:
+      pass
 
 
 # --- الواجهة العربية ---
@@ -146,22 +176,40 @@ def run_arabic_app():
           st.info("لا توجد حجوزات حتى الآن")
 
       with tab_admin3:
-        st.subheader("إضافة وجبة جديدة")
+        st.subheader("إضافة وجبة جديدة (ترجمة فورية تلقائية)")
         col_ar, col_en, col_price = st.columns([2, 2, 1])
+
         with col_ar:
-          new_name_ar = st.text_input("اسم الوجبة (بالعربية)")
+          st.text_input(
+              "اسم الوجبة (بالعربية)",
+              key="input_ar",
+              on_change=on_ar_change,
+          )
+
         with col_en:
-          new_name_en = st.text_input("Item Name (English)")
+          st.text_input(
+              "Item Name (English)",
+              key="input_en",
+              on_change=on_en_change,
+          )
+
         with col_price:
           new_price = st.number_input("السعر (درهم)", min_value=1.0, value=20.0)
 
         if st.button("إضافة الوجبة"):
-          if new_name_ar:
-            add_menu_item(new_name_ar, new_name_en, new_price)
-            st.success(f"تمت إضافة {new_name_ar} بنجاح!")
+          if st.session_state.input_ar or st.session_state.input_en:
+            add_menu_item(
+                st.session_state.input_ar,
+                st.session_state.input_en,
+                new_price,
+            )
+            st.success(f"تمت إضافة الوجبة بنجاح!")
+            # إعادة تعيين الخانات
+            st.session_state.input_ar = ""
+            st.session_state.input_en = ""
             st.rerun()
           else:
-            st.warning("يرجى إدخال اسم الوجبة بالعربية")
+            st.warning("يرجى إدخال اسم الوجبة بالعربية أو الإنجليزية")
 
         st.markdown("---")
         st.subheader("المنيو الحالي (حذف وجبة)")
@@ -340,19 +388,36 @@ def run_english_app():
           st.info("No reservations yet")
 
       with tab_admin3:
-        st.subheader("Add New Item")
+        st.subheader("Add New Item (Live Auto-Translation)")
         col_ar, col_en, col_price = st.columns([2, 2, 1])
+
         with col_ar:
-          new_name_ar = st.text_input("اسم الوجبة (بالعربية)")
+          st.text_input(
+              "اسم الوجبة (بالعربية)",
+              key="input_ar",
+              on_change=on_ar_change,
+          )
+
         with col_en:
-          new_name_en = st.text_input("Item Name (English)")
+          st.text_input(
+              "Item Name (English)",
+              key="input_en",
+              on_change=on_en_change,
+          )
+
         with col_price:
           new_price = st.number_input("Price (AED)", min_value=1.0, value=20.0)
 
         if st.button("Add Item"):
-          if new_name_en or new_name_ar:
-            add_menu_item(new_name_ar, new_name_en, new_price)
+          if st.session_state.input_ar or st.session_state.input_en:
+            add_menu_item(
+                st.session_state.input_ar,
+                st.session_state.input_en,
+                new_price,
+            )
             st.success("Item added successfully!")
+            st.session_state.input_ar = ""
+            st.session_state.input_en = ""
             st.rerun()
           else:
             st.warning("Please enter item name")
