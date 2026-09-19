@@ -1,6 +1,5 @@
 import json
 import os
-from deep_translator import GoogleTranslator
 import streamlit as st
 
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
@@ -8,15 +7,6 @@ st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 ORDERS_FILE = "orders.json"
 RESERVATIONS_FILE = "reservations.json"
 MENU_FILE = "menu.json"
-
-LANGUAGES = {
-    "English": "en",
-    "العربية": "ar",
-    "اردو": "ur",
-    "हिन्दी": "hi",
-    "Filipino": "fil",
-    "Русский": "ru",
-}
 
 DEFAULT_MENU = [
     {
@@ -61,52 +51,16 @@ def get_menu():
   return load_data(MENU_FILE, DEFAULT_MENU)
 
 
-# دالة إحضار الاسم وتضمن الترجمة الحية دائماً حسب اللغة المختارة
 def get_display_name(item, lang_code):
   if not isinstance(item, dict):
     return str(item)
-
-  # 1. إذا كانت الوجبة محددة بـ name_ar و name_en جاهزة
-  if lang_code == "ar" and item.get("name_ar"):
-    return item["name_ar"]
-  if lang_code == "en" and item.get("name_en"):
-    return item["name_en"]
-
-  # 2. في حالة البيانات القديمة المسجلة تحت مفتاح "name" أو نصوص أحادية
-  raw_name = item.get("name", item.get("name_ar", item.get("name_en", "")))
-  if not raw_name:
-    return ""
-
-  try:
-    translated = GoogleTranslator(source="auto", target=lang_code).translate(
-        raw_name
-    )
-    return translated if translated else raw_name
-  except Exception:
-    return raw_name
-
-
-# دالة إضافة الوجبة مع الترجمة المباشرة للاتجاهين
-def add_menu_item_auto(name, price, input_lang):
-  name_clean = name.strip()
-
-  if input_lang == "ar":
-    name_ar = name_clean
-    try:
-      name_en = GoogleTranslator(source="ar", target="en").translate(name_clean)
-      if not name_en:
-        name_en = name_clean
-    except Exception:
-      name_en = name_clean
+  if lang_code == "ar":
+    return item.get("name_ar") or item.get("name_en") or item.get("name", "")
   else:
-    name_en = name_clean
-    try:
-      name_ar = GoogleTranslator(source="en", target="ar").translate(name_clean)
-      if not name_ar:
-        name_ar = name_clean
-    except Exception:
-      name_ar = name_clean
+    return item.get("name_en") or item.get("name_ar") or item.get("name", "")
 
+
+def add_menu_item(name_ar, name_en, price):
   menu = get_menu()
   new_id = (
       max(
@@ -117,8 +71,8 @@ def add_menu_item_auto(name, price, input_lang):
   )
   menu.append({
       "id": new_id,
-      "name_ar": name_ar,
-      "name_en": name_en,
+      "name_ar": name_ar.strip(),
+      "name_en": name_en.strip() if name_en else name_ar.strip(),
       "price": float(price),
   })
   save_data(MENU_FILE, menu)
@@ -192,25 +146,22 @@ def run_arabic_app():
           st.info("لا توجد حجوزات حتى الآن")
 
       with tab_admin3:
-        st.subheader("إضافة وجبة جديدة وترجمتها آلياً")
-        col_lang, col_name, col_price = st.columns([1.5, 2, 1])
-        with col_lang:
-          input_lang = st.selectbox(
-              "لغة الإدخال", ["العربية", "English"], index=0
-          )
-          lang_code_input = "ar" if input_lang == "العربية" else "en"
-        with col_name:
-          new_name = st.text_input("اسم الوجبة")
+        st.subheader("إضافة وجبة جديدة")
+        col_ar, col_en, col_price = st.columns([2, 2, 1])
+        with col_ar:
+          new_name_ar = st.text_input("اسم الوجبة (بالعربية)")
+        with col_en:
+          new_name_en = st.text_input("Item Name (English)")
         with col_price:
           new_price = st.number_input("السعر (درهم)", min_value=1.0, value=20.0)
 
         if st.button("إضافة الوجبة"):
-          if new_name:
-            add_menu_item_auto(new_name, new_price, lang_code_input)
-            st.success(f"تمت إضافة {new_name} بنجاح!")
+          if new_name_ar:
+            add_menu_item(new_name_ar, new_name_en, new_price)
+            st.success(f"تمت إضافة {new_name_ar} بنجاح!")
             st.rerun()
           else:
-            st.warning("يرجى كتابة اسم الوجبة")
+            st.warning("يرجى إدخال اسم الوجبة بالعربية")
 
         st.markdown("---")
         st.subheader("المنيو الحالي (حذف وجبة)")
@@ -389,22 +340,19 @@ def run_english_app():
           st.info("No reservations yet")
 
       with tab_admin3:
-        st.subheader("Add New Item & Auto-Translate")
-        col_lang, col_name, col_price = st.columns([1.5, 2, 1])
-        with col_lang:
-          input_lang = st.selectbox(
-              "Input Language", ["English", "العربية"], index=0
-          )
-          lang_code_input = "en" if input_lang == "English" else "ar"
-        with col_name:
-          new_name = st.text_input("Item Name")
+        st.subheader("Add New Item")
+        col_ar, col_en, col_price = st.columns([2, 2, 1])
+        with col_ar:
+          new_name_ar = st.text_input("اسم الوجبة (بالعربية)")
+        with col_en:
+          new_name_en = st.text_input("Item Name (English)")
         with col_price:
           new_price = st.number_input("Price (AED)", min_value=1.0, value=20.0)
 
         if st.button("Add Item"):
-          if new_name:
-            add_menu_item_auto(new_name, new_price, lang_code_input)
-            st.success(f"Added {new_name} successfully!")
+          if new_name_en or new_name_ar:
+            add_menu_item(new_name_ar, new_name_en, new_price)
+            st.success("Item added successfully!")
             st.rerun()
           else:
             st.warning("Please enter item name")
