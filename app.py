@@ -77,79 +77,92 @@ def get_item_name(item, lang_code):
   return translate_item_from_dict(raw_name, lang_code)
 
 
-# --- إعداد الجلسة واللغة ---
+# --- إعداد الجلسة واللغة الافتراضية (الإنجليزية) ---
 if "cart" not in st.session_state:
   st.session_state.cart = {}
 
-st.sidebar.title("الخيارات / Options 🌐")
+st.sidebar.title("Options / الخيارات 🌐")
 selected_lang_name = st.sidebar.selectbox(
-    "اللغة / Language", list(LANGUAGES.keys()), index=0
+    "Language / اللغة", list(LANGUAGES.keys()), index=0
 )
 lang_code = LANGUAGES[selected_lang_name]
 
-admin_mode = st.sidebar.checkbox("وضع الأدمن / Admin Mode 🔒")
+admin_mode = st.sidebar.checkbox(
+    f"{get_ui_text('admin_mode', lang_code)} 🔒"
+)
 
 st.title(f"🍔 {get_ui_text('welcome', lang_code)}")
 
 # --- لوحة التحكم للأدمن ---
 if admin_mode:
-  password = st.sidebar.text_input("كلمة السر / Password", type="password")
+  password = st.sidebar.text_input(
+      get_ui_text("password", lang_code), type="password"
+  )
   if password == "1234":
-    st.sidebar.success("تم الدخول بنجاح")
-    st.header("لوحة التحكم / Admin Dashboard")
+    st.sidebar.success(get_ui_text("logged_in", lang_code))
+    st.header(get_ui_text("admin_dash", lang_code))
 
-    tab_admin1, tab_admin2, tab_admin3 = st.tabs(
-        ["الطلبات الواردة", "الحجوزات", "إدارة قائمة الطعام (المنيو)"]
-    )
+    tab_admin1, tab_admin2, tab_admin3 = st.tabs([
+        get_ui_text("orders_tab", lang_code),
+        get_ui_text("res_tab", lang_code),
+        get_ui_text("menu_tab", lang_code),
+    ])
 
     with tab_admin1:
-      st.subheader("قائمة الطلبات الواردة")
+      st.subheader(get_ui_text("orders_tab", lang_code))
       orders = load_data(ORDERS_FILE)
       if orders:
         for idx, o in enumerate(reversed(orders), 1):
           with st.expander(
-              f"طلب #{idx} - العميل: {o.get('customer')} | الإجمالي:"
-              f" {o.get('total')} درهم"
+              f"#{idx} - {get_ui_text('customer', lang_code)}:"
+              f" {o.get('customer')} | {get_ui_text('total', lang_code)}:"
+              f" {o.get('total')} {get_ui_text('curr', lang_code)}"
           ):
-            st.write(f"**رقم الطاولة:** {o.get('table', 'سفري')}")
-            st.write("**الأصناف:**")
+            st.write(
+                f"**{get_ui_text('table', lang_code)}:** {o.get('table', '-')}"
+            )
+            st.write(f"**{get_ui_text('main_menu', lang_code)}:**")
             for item_name, qty in o.get("items", {}).items():
               disp = translate_item_from_dict(item_name, lang_code)
               st.write(f"- {disp} × {qty}")
       else:
-        st.info("لا توجد طلبات حتى الآن")
+        st.info(get_ui_text("no_orders", lang_code))
 
     with tab_admin2:
-      st.subheader("قائمة الحجوزات")
+      st.subheader(get_ui_text("res_tab", lang_code))
       reservations = load_data(RESERVATIONS_FILE)
       if reservations:
         for r in reversed(reservations):
           st.write(
-              f"📌 **{r.get('name')}** - عدد الأفراد: {r.get('guests')} |"
-              f" التاريخ: {r.get('date')} | الوقت: {r.get('time')}"
+              f"📌 **{r.get('name')}** -"
+              f" {get_ui_text('guests_count', lang_code)}: {r.get('guests')} |"
+              f" {get_ui_text('date', lang_code)}: {r.get('date')} |"
+              f" {get_ui_text('time', lang_code)}: {r.get('time')}"
           )
           st.markdown("---")
       else:
-        st.info("لا توجد حجوزات حتى الآن")
+        st.info(get_ui_text("no_res", lang_code))
 
     with tab_admin3:
-      st.subheader("إضافة وجبة جديدة")
+      st.subheader(get_ui_text("add_new", lang_code))
       col_a, col_b = st.columns([2, 1])
       with col_a:
-        new_name = st.text_input("اسم الوجبة (بالعربية)")
+        new_name = st.text_input(get_ui_text("item_name_input", lang_code))
       with col_b:
-        new_price = st.number_input("السعر", min_value=1.0, value=20.0)
+        new_price = st.number_input(
+            get_ui_text("price_input", lang_code), min_value=1.0, value=20.0
+        )
 
-      if st.button("إضافة الوجبة للمنيو"):
+      if st.button(get_ui_text("add_btn", lang_code)):
         if new_name:
           add_menu_item(new_name, new_price)
-          st.success(f"تمت إضافة {new_name} بنجاح!")
+          st.success("OK")
           st.rerun()
         else:
-          st.warning("يرجى كتابة اسم الوجبة")
+          st.warning(get_ui_text("item_name_input", lang_code))
 
       st.markdown("---")
-      st.subheader("المنيو الحالي (حذف وجبة)")
+      st.subheader(get_ui_text("curr_menu", lang_code))
       current_menu = get_menu()
       for item in current_menu:
         c1, c2 = st.columns([3, 1])
@@ -157,14 +170,18 @@ if admin_mode:
         item_id = item.get("id") if isinstance(item, dict) else None
         price = item.get("price", 0) if isinstance(item, dict) else 0
         with c1:
-          st.write(f"• **{disp_name}** - {price} درهم")
+          st.write(
+              f"• **{disp_name}** - {price}"
+              f" {get_ui_text('curr', lang_code)}"
+          )
         with c2:
-          if item_id and st.button("حذف", key=f"del_{item_id}"):
+          if item_id and st.button(
+              get_ui_text("delete_btn", lang_code), key=f"del_{item_id}"
+          ):
             delete_menu_item(item_id)
-            st.success("تم الحذف بنجاح")
             st.rerun()
   else:
-    st.sidebar.error("كلمة السر خاطئة")
+    st.sidebar.error(get_ui_text("wrong_pass", lang_code))
 
 # --- واجهة الزبون ---
 else:
@@ -197,7 +214,7 @@ else:
 
       with c2:
         qty = st.number_input(
-            "الكمية",
+            "Qty",
             min_value=1,
             value=1,
             key=f"qty_{item_id}",
@@ -217,7 +234,7 @@ else:
             st.session_state.cart[raw_ar_name] += qty
           else:
             st.session_state.cart[raw_ar_name] = qty
-          st.success(f"تمت إضافة {display_name}")
+          st.success(f"{get_ui_text('add_item', lang_code)}: {display_name}")
           st.rerun()
 
   with tab2:
@@ -225,7 +242,7 @@ else:
     curr = get_ui_text("curr", lang_code)
 
     if not st.session_state.cart:
-      st.info("السلة فارغة حالياً")
+      st.info(get_ui_text("empty_cart", lang_code))
     else:
       total_price = 0
       menu_items = get_menu()
@@ -246,10 +263,10 @@ else:
       st.markdown("---")
       st.subheader(f"{get_ui_text('total', lang_code)}: {total_price:.1f} {curr}")
 
-      customer_name = st.text_input("اسمك الكريم / Your Name")
-      table_num = st.text_input("رقم الطاولة (اختياري) / Table Number")
+      customer_name = st.text_input(get_ui_text("your_name", lang_code))
+      table_num = st.text_input(get_ui_text("table_num", lang_code))
 
-      if st.button("تأكيد الطلب / Confirm Order"):
+      if st.button(get_ui_text("confirm_order", lang_code)):
         if customer_name:
           order_data = {
               "customer": customer_name,
@@ -262,12 +279,12 @@ else:
           save_data(ORDERS_FILE, orders)
 
           st.session_state.cart = {}
-          st.success("تم إرسال طلبك بنجاح! شكراً لك.")
+          st.success(get_ui_text("order_success", lang_code))
           st.rerun()
         else:
-          st.warning("يرجى كتابة الاسم لتأكيد الطلب")
+          st.warning(get_ui_text("enter_name_warn", lang_code))
 
- with tab3:
+  with tab3:
     st.header(get_ui_text("reserve", lang_code))
 
     res_name = st.text_input(get_ui_text("res_name", lang_code))
