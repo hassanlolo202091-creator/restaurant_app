@@ -3,11 +3,6 @@ import os
 import streamlit as st
 from translate import Translator
 
-st.set_page_config(page_title="Restaurantimport json
-import os
-import streamlit as st
-from translate import Translator
-
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 
 # إجبار جميع حقول الأرقام والعدادات على عرض الأرقام باللغة الإنجليزية (1, 2, 3)
