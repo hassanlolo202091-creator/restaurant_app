@@ -37,6 +37,8 @@ DEFAULT_MENU = [
     {"id": 3, "name": "Fresh Orange Juice", "price": 12.0},
 ]
 
+ALL_TABLES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
 
 # إخفاء المؤشر والملاحظة أثناء تنفيذ الترجمة
 @st.cache_data(show_spinner=False)
@@ -69,6 +71,15 @@ def save_data(file_path, data):
 
 def get_menu():
   return load_data(MENU_FILE, DEFAULT_MENU)
+
+
+def get_available_tables():
+  reservations = load_data(RESERVATIONS_FILE)
+  reserved_tables = [
+      r.get("table_number") for r in reservations if "table_number" in r
+  ]
+  available = [t for t in ALL_TABLES if t not in reserved_tables]
+  return available
 
 
 def add_menu_item(name_en, price):
@@ -123,7 +134,7 @@ if st.session_state.app_language is None:
         st.rerun()
 
 # ==========================================
-# 2. الشاشة الرئيسية مع تعديل الترتيب المطلوب
+# 2. الشاشة الرئيسية
 # ==========================================
 elif st.session_state.current_page == "main_menu":
   lang = st.session_state.app_language
@@ -141,7 +152,6 @@ elif st.session_state.current_page == "main_menu":
   col1, col2, col3 = st.columns(3)
 
   with col1:
-    # 1. قائمة الطعام (الزر الأول)
     btn_menu = translate_text("Food Menu", lang)
     if st.button(f"📜 {btn_menu}", use_container_width=True, type="primary"):
       st.session_state.current_page = "food_menu_page"
@@ -149,7 +159,6 @@ elif st.session_state.current_page == "main_menu":
 
     st.write("<br>", unsafe_allow_html=True)
 
-    # 2. حجز الطاولة (الزر الثاني)
     btn_reservation = translate_text("Table Reservation", lang)
     if st.button(
         f"📅 {btn_reservation}", use_container_width=True, type="primary"
@@ -236,9 +245,20 @@ elif st.session_state.current_page == "admin_page":
               f" {translate_text('AED', admin_lang)}"
           ):
             st.write(
-                f"**{translate_text('Table Number', admin_lang)}:**"
-                f" {o.get('table', translate_text('Takeaway', admin_lang))}"
+                f"**{translate_text('Order Type', admin_lang)}:**"
+                f" {o.get('order_type', '-')}"
             )
+            st.write(f"**{translate_text('Phone', admin_lang)}:** {o.get('phone', '-')}")
+            if "table" in o:
+              st.write(
+                  f"**{translate_text('Table Number', admin_lang)}:**"
+                  f" {o.get('table')}"
+              )
+            if "address" in o:
+              st.write(
+                  f"**{translate_text('Delivery Address', admin_lang)}:**"
+                  f" {o.get('address')}"
+              )
             for item_name, qty in o.get("items", {}).items():
               st.write(f"- {item_name} × {qty}")
       else:
@@ -250,8 +270,9 @@ elif st.session_state.current_page == "admin_page":
       if reservations:
         for r in reversed(reservations):
           st.write(
-              f"📌 **{r.get('name')}** - {translate_text('Guests Count', admin_lang)}:"
-              f" {r.get('guests')} | {translate_text('Date', admin_lang)}:"
+              f"📌 **{r.get('name')}** - {translate_text('Table Number', admin_lang)}:"
+              f" {r.get('table_number')} | {translate_text('Phone', admin_lang)}:"
+              f" {r.get('phone')} | {translate_text('Date', admin_lang)}:"
               f" {r.get('date')} | {translate_text('Time', admin_lang)}:"
               f" {r.get('time')}"
           )
@@ -356,49 +377,11 @@ elif st.session_state.current_page in [
           )
           st.rerun()
 
-  # 2. صفحة خدمة التوصيل
-  elif st.session_state.current_page == "delivery_page":
-    st.title(f"🛵 {translate_text('Delivery Service', lang)}")
-    st.write(
-        translate_text(
-            "Enter your address details to start delivery order", lang
-        )
-    )
-    st.text_input(translate_text("Delivery Address", lang))
-    st.text_input(translate_text("Phone Number", lang))
-    st.text_area(translate_text("Delivery Instructions", lang))
-    if st.button(translate_text("Proceed to Order Menu", lang)):
-      st.session_state.current_page = "food_menu_page"
-      st.rerun()
-
-  # 3. صفحة حجز الطاولة
-  elif st.session_state.current_page == "reservation_page":
-    st.title(f"📅 {translate_text('Table Reservation', lang)}")
-    res_name = st.text_input(translate_text("Reservation Name", lang))
-    res_guests = st.number_input(
-        translate_text("Guests Count", lang), min_value=1, value=2, step=1
-    )
-    res_date = st.date_input(translate_text("Date", lang))
-    res_time = st.time_input(translate_text("Time", lang))
-
-    if st.button(translate_text("Reserve Now", lang)):
-      if res_name:
-        reservations = load_data(RESERVATIONS_FILE)
-        reservations.append({
-            "name": res_name,
-            "guests": int(res_guests),
-            "date": str(res_date),
-            "time": str(res_time),
-        })
-        save_data(RESERVATIONS_FILE, reservations)
-        st.success(translate_text("Table reserved successfully!", lang))
-      else:
-        st.warning(translate_text("Please enter reservation name", lang))
-
-  # 4. صفحة سلة المشتريات
+  # 2. صفحة سلة المشتريات (تخير بين أكل داخل المطعم أو دليفري)
   elif st.session_state.current_page == "cart_page":
     st.title(f"🛒 {translate_text('Shopping Cart', lang)}")
     currency_text = translate_text("AED", lang)
+
     if not st.session_state.cart:
       st.info(translate_text("Your cart is empty", lang))
     else:
@@ -421,31 +404,132 @@ elif st.session_state.current_page in [
       st.subheader(
           f"{translate_text('Total', lang)}: {total_price:.1f} {currency_text}"
       )
+      st.write("---")
 
-      customer_name = st.text_input(translate_text("Your Name", lang))
-      table_num = st.text_input(
-          translate_text("Table Number (Optional)", lang)
+      # السؤال عن نوع الطلب
+      st.subheader(
+          translate_text("Would you like to dine-in or delivery?", lang)
       )
 
-      if st.button(translate_text("Confirm Order", lang)):
-        if customer_name:
+      col_dine, col_del = st.columns(2)
+      with col_dine:
+        if st.button(
+            f"🍽️ {translate_text('Dine-in (Eat in Restaurant)', lang)}",
+            use_container_width=True,
+            type="primary",
+        ):
+          st.session_state.current_page = "reservation_page"
+          st.rerun()
+
+      with col_del:
+        if st.button(
+            f"🛵 {translate_text('Delivery Order', lang)}",
+            use_container_width=True,
+            type="primary",
+        ):
+          st.session_state.current_page = "delivery_page"
+          st.rerun()
+
+  # 3. صفحة حجز الطاولة (تظهر المواعيد وطاولات فارغة)
+  elif st.session_state.current_page == "reservation_page":
+    st.title(f"🍽️ {translate_text('Dine-in / Table Reservation', lang)}")
+
+    res_name = st.text_input(translate_text("Your Name", lang))
+    res_phone = st.text_input(translate_text("Phone Number", lang))
+
+    available_tables = get_available_tables()
+    if available_tables:
+      selected_table = st.selectbox(
+          translate_text("Available Tables", lang), options=available_tables
+      )
+    else:
+      st.warning(translate_text("No tables available at the moment", lang))
+      selected_table = None
+
+    res_date = st.date_input(translate_text("Reservation Date", lang))
+    res_time = st.time_input(translate_text("Arrival Time", lang))
+
+    if st.button(
+        translate_text("Confirm Dine-in Reservation", lang), type="primary"
+    ):
+      if res_name and res_phone and selected_table:
+        # حفظ الحجز
+        reservations = load_data(RESERVATIONS_FILE)
+        reservations.append({
+            "name": res_name,
+            "phone": res_phone,
+            "table_number": selected_table,
+            "date": str(res_date),
+            "time": str(res_time),
+        })
+        save_data(RESERVATIONS_FILE, reservations)
+
+        # حفظ الطلب لو موجود عناصر بالسلة
+        if st.session_state.cart:
           orders = load_data(ORDERS_FILE)
+          price_dict = {
+              translate_text(item["name"], lang): item["price"]
+              for item in get_menu()
+          }
+          total_price = sum(
+              price_dict.get(k, 0) * v for k, v in st.session_state.cart.items()
+          )
+
           orders.append({
-              "customer": customer_name,
-              "table": table_num,
+              "customer": res_name,
+              "phone": res_phone,
+              "table": selected_table,
+              "order_type": "Dine-in",
               "items": st.session_state.cart,
               "total": total_price,
           })
           save_data(ORDERS_FILE, orders)
           st.session_state.cart = {}
-          st.success(
-              translate_text(
-                  "Order submitted successfully! Thank you.", lang
-              )
-          )
-          st.rerun()
-        else:
-          st.warning(translate_text("Please enter your name", lang))
+
+        st.success(
+            translate_text("Reservation & Order submitted successfully!", lang)
+        )
+      else:
+        st.warning(
+            translate_text("Please fill in your name, phone and table", lang)
+        )
+
+  # 4. صفحة الدليفري
+  elif st.session_state.current_page == "delivery_page":
+    st.title(f"🛵 {translate_text('Delivery Details', lang)}")
+
+    del_name = st.text_input(translate_text("Your Name", lang))
+    del_address = st.text_area(translate_text("Delivery Location/Address", lang))
+    del_phone = st.text_input(translate_text("Phone Number", lang))
+
+    if st.button(
+        translate_text("Confirm Delivery Order", lang), type="primary"
+    ):
+      if del_name and del_address and del_phone:
+        orders = load_data(ORDERS_FILE)
+        price_dict = {
+            translate_text(item["name"], lang): item["price"]
+            for item in get_menu()
+        }
+        total_price = sum(
+            price_dict.get(k, 0) * v for k, v in st.session_state.cart.items()
+        )
+
+        orders.append({
+            "customer": del_name,
+            "address": del_address,
+            "phone": del_phone,
+            "order_type": "Delivery",
+            "items": st.session_state.cart,
+            "total": total_price,
+        })
+        save_data(ORDERS_FILE, orders)
+        st.session_state.cart = {}
+        st.success(
+            translate_text("Delivery order submitted successfully!", lang)
+        )
+      else:
+        st.warning(translate_text("Please fill in all details", lang))
 
   # 5. صفحة تتبع الطلبيات
   elif st.session_state.current_page == "track_orders_page":
