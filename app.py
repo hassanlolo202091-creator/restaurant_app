@@ -123,7 +123,7 @@ if st.session_state.app_language is None:
         st.rerun()
 
 # ==========================================
-# 2. الشاشة الرئيسية مع زر منفصل لكل خدمة ولودجو/أيقونة
+# 2. الشاشة الرئيسية دون نصوص أسفل الأزرار
 # ==========================================
 elif st.session_state.current_page == "main_menu":
   lang = st.session_state.app_language
@@ -147,24 +147,21 @@ elif st.session_state.current_page == "main_menu":
     ):
       st.session_state.current_page = "reservation_page"
       st.rerun()
-    st.caption("🪑 Reservation Logo / حجز الطاولات")
-    st.write("---")
 
-    btn_my_orders = translate_text("My Orders", lang)
-    if st.button(
-        f"🛒 {btn_my_orders}", use_container_width=True, type="secondary"
-    ):
+    st.write("<br>", unsafe_allow_html=True)
+
+    btn_cart = translate_text("Shopping Cart", lang)
+    if st.button(f"🛒 {btn_cart}", use_container_width=True, type="secondary"):
       st.session_state.current_page = "cart_page"
       st.rerun()
-    st.caption("🛍️ Cart Logo / سلة الطلبات")
 
   with col2:
     btn_menu = translate_text("Food Menu", lang)
     if st.button(f"📜 {btn_menu}", use_container_width=True, type="primary"):
       st.session_state.current_page = "food_menu_page"
       st.rerun()
-    st.caption("🍕 Food Menu Logo / قائمة الطعام")
-    st.write("---")
+
+    st.write("<br>", unsafe_allow_html=True)
 
     btn_delivery = translate_text("Delivery", lang)
     if st.button(
@@ -172,17 +169,16 @@ elif st.session_state.current_page == "main_menu":
     ):
       st.session_state.current_page = "delivery_page"
       st.rerun()
-    st.caption("🚚 Fast Delivery Logo / خدمة التوصيل")
 
   with col3:
-    btn_invoices = translate_text("Invoices", lang)
+    btn_track = translate_text("Track Orders", lang)
     if st.button(
-        f"🧾 {btn_invoices}", use_container_width=True, type="secondary"
+        f"📍 {btn_track}", use_container_width=True, type="secondary"
     ):
-      st.session_state.current_page = "invoices_page"
+      st.session_state.current_page = "track_orders_page"
       st.rerun()
-    st.caption("📄 Receipt Logo / الفواتير والمدفوعات")
-    st.write("---")
+
+    st.write("<br>", unsafe_allow_html=True)
 
     btn_contact = translate_text("Contact Us", lang)
     if st.button(
@@ -190,7 +186,6 @@ elif st.session_state.current_page == "main_menu":
     ):
       st.session_state.current_page = "contact_page"
       st.rerun()
-    st.caption("💬 Support Logo / خدمة العملاء")
 
   st.write("---")
   btn_admin = translate_text("Admin Dashboard", lang)
@@ -317,7 +312,7 @@ elif st.session_state.current_page in [
     "delivery_page",
     "reservation_page",
     "cart_page",
-    "invoices_page",
+    "track_orders_page",
     "contact_page",
 ]:
   lang = st.session_state.app_language
@@ -326,7 +321,7 @@ elif st.session_state.current_page in [
     st.session_state.current_page = "main_menu"
     st.rerun()
 
-  # 1. صفحة قائمة الطعام (عرض الطعام والطلب)
+  # 1. صفحة قائمة الطعام
   if st.session_state.current_page == "food_menu_page":
     st.title(f"📜 {translate_text('Food Menu', lang)}")
     menu_items = get_menu()
@@ -359,7 +354,7 @@ elif st.session_state.current_page in [
           )
           st.rerun()
 
-  # 2. صفحة خدمة التوصيل (عنوان التوصيل وتتبع الطلب)
+  # 2. صفحة خدمة التوصيل
   elif st.session_state.current_page == "delivery_page":
     st.title(f"🛵 {translate_text('Delivery Service', lang)}")
     st.write(
@@ -398,9 +393,9 @@ elif st.session_state.current_page in [
       else:
         st.warning(translate_text("Please enter reservation name", lang))
 
-  # 4. صفحة طلباتي والسلة
+  # 4. صفحة سلة المشتريات
   elif st.session_state.current_page == "cart_page":
-    st.title(f"🛒 {translate_text('My Orders / Cart', lang)}")
+    st.title(f"🛒 {translate_text('Shopping Cart', lang)}")
     currency_text = translate_text("AED", lang)
     if not st.session_state.cart:
       st.info(translate_text("Your cart is empty", lang))
@@ -450,10 +445,10 @@ elif st.session_state.current_page in [
         else:
           st.warning(translate_text("Please enter your name", lang))
 
-  # 5. صفحة الفواتير
-  elif st.session_state.current_page == "invoices_page":
-    st.title(f"🧾 {translate_text('Invoices', lang)}")
-    st.info(translate_text("No invoices recorded yet.", lang))
+  # 5. صفحة تتبع الطلبيات
+  elif st.session_state.current_page == "track_orders_page":
+    st.title(f"📍 {translate_text('Track Orders', lang)}")
+    st.info(translate_text("No active orders to track currently.", lang))
 
   # 6. صفحة تواصل معنا
   elif st.session_state.current_page == "contact_page":
