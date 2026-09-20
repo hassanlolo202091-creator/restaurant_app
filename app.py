@@ -5,16 +5,18 @@ from translate import Translator
 
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 
-# إجبار جميع الأرقام وحقول الإدخال على عرض الأرقام الإنجليزية (123)
+# إجبار التنسيق على عرض الأرقام باللغة الإنجليزية
 st.markdown(
     """
     <style>
-    input[type="number"], .stNumberInput input {
+    input[type="number"], .stNumberInput input, select, option {
         direction: ltr !important;
-        font-family: monospace, sans-serif !important;
+        font-feature-settings: "tnam" 0, "numr" 0 !important;
+        font-variant-numeric: lining-nums tabular-nums !important;
+        font-family: Arial, Helvetica, sans-serif !important;
     }
     </style>
-""",
+    """,
     unsafe_allow_html=True,
 )
 
@@ -286,10 +288,10 @@ else:
           st.subheader(display_name)
           st.write(f"{item['price']} {currency_text}")
         with c2:
-          qty = st.number_input(
+          # استخدام selectbox لضمان عرض الأرقام بالإنجليزية (1, 2, 3...) دائماً
+          qty = st.selectbox(
               qty_text,
-              min_value=1,
-              value=1,
+              options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
               key=f"qty_{item['id']}",
               label_visibility="collapsed",
           )
