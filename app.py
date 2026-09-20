@@ -38,8 +38,8 @@ DEFAULT_MENU = [
 ]
 
 
-# إضافة التخزين المؤقت لسرعة الاستجابة والترجمة
-@st.cache_data
+# إخفاء المؤشر والملاحظة أثناء تنفيذ الترجمة
+@st.cache_data(show_spinner=False)
 def translate_text(text, target_lang):
   if target_lang == "en" or not text:
     return text
@@ -290,7 +290,6 @@ else:
           st.subheader(display_name)
           st.write(f"{item['price']} {currency_text}")
         with c2:
-          # العداد بالزرين (+ و -)
           qty = st.number_input(
               qty_text,
               min_value=1,
