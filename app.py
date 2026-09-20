@@ -5,6 +5,19 @@ from translate import Translator
 
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 
+# إجبار جميع الأرقام وحقول الإدخال على عرض الأرقام الإنجليزية (123)
+st.markdown(
+    """
+    <style>
+    input[type="number"], .stNumberInput input {
+        direction: ltr !important;
+        font-family: monospace, sans-serif !important;
+    }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
 ORDERS_FILE = "orders.json"
 RESERVATIONS_FILE = "reservations.json"
 MENU_FILE = "menu.json"
@@ -87,7 +100,6 @@ if "admin_language" not in st.session_state:
 if "cart" not in st.session_state:
   st.session_state.cart = {}
 
-# الشريط الجانبي لوضع الأدمن
 admin_mode = st.sidebar.checkbox("Admin Mode / وضع الأدمن 🔒")
 
 
@@ -95,7 +107,6 @@ admin_mode = st.sidebar.checkbox("Admin Mode / وضع الأدمن 🔒")
 # 1. لوحة التحكم (Admin Mode)
 # ==========================================
 if admin_mode:
-  # الخطوة 1: اختيار لغة الأدمن أولاً
   if st.session_state.admin_language is None:
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.title("🔒 Admin Language / اختر لغة لوحة التحكم")
@@ -121,9 +132,7 @@ if admin_mode:
     )
 
     if password == "1234":
-      st.sidebar.success(
-          translate_text("Logged in successfully", admin_lang)
-      )
+      st.sidebar.success(translate_text("Logged in successfully", admin_lang))
       st.title(f"🛠️ {translate_text('Admin Dashboard', admin_lang)}")
 
       tab_a1_text = translate_text("Incoming Orders", admin_lang)
@@ -134,7 +143,6 @@ if admin_mode:
           [f"📦 {tab_a1_text}", f"📅 {tab_a2_text}", f"📜 {tab_a3_text}"]
       )
 
-      # الطلبات الواردة
       with tab1:
         st.header(tab_a1_text)
         orders = load_data(ORDERS_FILE)
@@ -155,7 +163,6 @@ if admin_mode:
         else:
           st.info(translate_text("No orders yet", admin_lang))
 
-      # الحجوزات
       with tab2:
         st.header(tab_a2_text)
         reservations = load_data(RESERVATIONS_FILE)
@@ -171,7 +178,6 @@ if admin_mode:
         else:
           st.info(translate_text("No reservations yet", admin_lang))
 
-      # إدارة المنيو والترجمة
       with tab3:
         st.header(tab_a3_text)
         st.subheader(
@@ -193,21 +199,16 @@ if admin_mode:
         if st.button(translate_text("Add Item", admin_lang)):
           if new_name_input:
             add_menu_item(new_name_input, new_price_input)
-            st.success(
-                translate_text("Item added successfully!", admin_lang)
-            )
+            st.success(translate_text("Item added successfully!", admin_lang))
             st.rerun()
           else:
-            st.warning(
-                translate_text("Please enter item name", admin_lang)
-            )
+            st.warning(translate_text("Please enter item name", admin_lang))
 
         st.markdown("---")
         st.subheader(translate_text("Current Menu", admin_lang))
         current_menu = get_menu()
         for item in current_menu:
           c1, c2 = st.columns([3, 1])
-          # عرض الاسم المترجم للأدمن بحسب اللغة التي اختارها
           disp_name = translate_text(item["name"], admin_lang)
           with c1:
             st.write(
@@ -219,9 +220,7 @@ if admin_mode:
                 translate_text("Delete", admin_lang), key=f"del_{item['id']}"
             ):
               delete_menu_item(item["id"])
-              st.success(
-                  translate_text("Deleted successfully", admin_lang)
-              )
+              st.success(translate_text("Deleted successfully", admin_lang))
               st.rerun()
     else:
       st.sidebar.error(translate_text("Wrong password", admin_lang))
@@ -231,7 +230,6 @@ if admin_mode:
 # 2. واجهة الزبون (Customer Mode)
 # ==========================================
 else:
-  # شاشة اختيار اللغة للزبون
   if st.session_state.app_language is None:
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.title("🌐 Select Language / اختر اللغة")
@@ -278,7 +276,6 @@ else:
         f"📅 {tab3_text}",
     ])
 
-    # قائمة الطعام للزبون
     with tab1:
       st.header(tab1_text)
       menu_items = get_menu()
@@ -307,7 +304,6 @@ else:
             )
             st.rerun()
 
-    # سلة الطلبات
     with tab2:
       st.header(tab2_text)
       if not st.session_state.cart:
@@ -354,7 +350,6 @@ else:
           else:
             st.warning(translate_text("Please enter your name", lang))
 
-    # حجز الطاولة
     with tab3:
       st.header(tab3_text)
       res_name = st.text_input(res_name_label)
