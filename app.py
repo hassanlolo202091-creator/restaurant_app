@@ -123,7 +123,7 @@ if st.session_state.app_language is None:
         st.rerun()
 
 # ==========================================
-# 2. الشاشة الثانية: الصفحة الرئيسية (أهلاً بك في مطعمنا)
+# 2. الشاشة الرئيسية مع زر منفصل لكل خدمة ولودجو/أيقونة
 # ==========================================
 elif st.session_state.current_page == "main_menu":
   lang = st.session_state.app_language
@@ -147,6 +147,8 @@ elif st.session_state.current_page == "main_menu":
     ):
       st.session_state.current_page = "reservation_page"
       st.rerun()
+    st.caption("🪑 Reservation Logo / حجز الطاولات")
+    st.write("---")
 
     btn_my_orders = translate_text("My Orders", lang)
     if st.button(
@@ -154,34 +156,47 @@ elif st.session_state.current_page == "main_menu":
     ):
       st.session_state.current_page = "cart_page"
       st.rerun()
+    st.caption("🛍️ Cart Logo / سلة الطلبات")
 
   with col2:
+    btn_menu = translate_text("Food Menu", lang)
+    if st.button(f"📜 {btn_menu}", use_container_width=True, type="primary"):
+      st.session_state.current_page = "food_menu_page"
+      st.rerun()
+    st.caption("🍕 Food Menu Logo / قائمة الطعام")
+    st.write("---")
+
     btn_delivery = translate_text("Delivery", lang)
     if st.button(
         f"🛵 {btn_delivery}", use_container_width=True, type="primary"
     ):
       st.session_state.current_page = "delivery_page"
       st.rerun()
+    st.caption("🚚 Fast Delivery Logo / خدمة التوصيل")
 
+  with col3:
     btn_invoices = translate_text("Invoices", lang)
     if st.button(
         f"🧾 {btn_invoices}", use_container_width=True, type="secondary"
     ):
       st.session_state.current_page = "invoices_page"
       st.rerun()
+    st.caption("📄 Receipt Logo / الفواتير والمدفوعات")
+    st.write("---")
 
-  with col3:
     btn_contact = translate_text("Contact Us", lang)
     if st.button(
-        f"📞 {btn_contact}", use_container_width=True, type="primary"
+        f"📞 {btn_contact}", use_container_width=True, type="secondary"
     ):
       st.session_state.current_page = "contact_page"
       st.rerun()
+    st.caption("💬 Support Logo / خدمة العملاء")
 
-    btn_admin = translate_text("Admin", lang)
-    if st.button(f"🔒 {btn_admin}", use_container_width=True, type="secondary"):
-      st.session_state.current_page = "admin_page"
-      st.rerun()
+  st.write("---")
+  btn_admin = translate_text("Admin Dashboard", lang)
+  if st.button(f"🔒 {btn_admin}", use_container_width=True):
+    st.session_state.current_page = "admin_page"
+    st.rerun()
 
 
 # ==========================================
@@ -295,9 +310,10 @@ elif st.session_state.current_page == "admin_page":
 
 
 # ==========================================
-# 4. باقي الأقسام والصفحات عند الضغط
+# 4. صفحات الأقسام والخدمات
 # ==========================================
 elif st.session_state.current_page in [
+    "food_menu_page",
     "delivery_page",
     "reservation_page",
     "cart_page",
@@ -310,9 +326,9 @@ elif st.session_state.current_page in [
     st.session_state.current_page = "main_menu"
     st.rerun()
 
-  # صفحة الدليفري والمنيو
-  if st.session_state.current_page == "delivery_page":
-    st.title(f"🛵 {translate_text('Delivery / Food Menu', lang)}")
+  # 1. صفحة قائمة الطعام (عرض الطعام والطلب)
+  if st.session_state.current_page == "food_menu_page":
+    st.title(f"📜 {translate_text('Food Menu', lang)}")
     menu_items = get_menu()
     add_btn_text = translate_text("Add to Cart", lang)
     currency_text = translate_text("AED", lang)
@@ -343,7 +359,22 @@ elif st.session_state.current_page in [
           )
           st.rerun()
 
-  # صفحة حجز الطاولة
+  # 2. صفحة خدمة التوصيل (عنوان التوصيل وتتبع الطلب)
+  elif st.session_state.current_page == "delivery_page":
+    st.title(f"🛵 {translate_text('Delivery Service', lang)}")
+    st.write(
+        translate_text(
+            "Enter your address details to start delivery order", lang
+        )
+    )
+    st.text_input(translate_text("Delivery Address", lang))
+    st.text_input(translate_text("Phone Number", lang))
+    st.text_area(translate_text("Delivery Instructions", lang))
+    if st.button(translate_text("Proceed to Order Menu", lang)):
+      st.session_state.current_page = "food_menu_page"
+      st.rerun()
+
+  # 3. صفحة حجز الطاولة
   elif st.session_state.current_page == "reservation_page":
     st.title(f"📅 {translate_text('Table Reservation', lang)}")
     res_name = st.text_input(translate_text("Reservation Name", lang))
@@ -367,7 +398,7 @@ elif st.session_state.current_page in [
       else:
         st.warning(translate_text("Please enter reservation name", lang))
 
-  # صفحة طلباتي والسلة
+  # 4. صفحة طلباتي والسلة
   elif st.session_state.current_page == "cart_page":
     st.title(f"🛒 {translate_text('My Orders / Cart', lang)}")
     currency_text = translate_text("AED", lang)
@@ -419,17 +450,13 @@ elif st.session_state.current_page in [
         else:
           st.warning(translate_text("Please enter your name", lang))
 
-  # صفحة الفواتير
+  # 5. صفحة الفواتير
   elif st.session_state.current_page == "invoices_page":
     st.title(f"🧾 {translate_text('Invoices', lang)}")
     st.info(translate_text("No invoices recorded yet.", lang))
 
-  # صفحة تواصل معنا
+  # 6. صفحة تواصل معنا
   elif st.session_state.current_page == "contact_page":
     st.title(f"📞 {translate_text('Contact Us', lang)}")
-    st.write(
-        f"**{translate_text('Phone', lang)}:** +971 50 123 4567"
-    )
-    st.write(
-        f"**{translate_text('Address', lang)}:** Main Street, City"
-    )
+    st.write(f"**{translate_text('Phone', lang)}:** +971 50 123 4567")
+    st.write(f"**{translate_text('Address', lang)}:** Main Street, City")
