@@ -123,7 +123,7 @@ if st.session_state.app_language is None:
         st.rerun()
 
 # ==========================================
-# 2. الشاشة الرئيسية دون نصوص أسفل الأزرار
+# 2. الشاشة الرئيسية مع تعديل الترتيب المطلوب
 # ==========================================
 elif st.session_state.current_page == "main_menu":
   lang = st.session_state.app_language
@@ -141,21 +141,7 @@ elif st.session_state.current_page == "main_menu":
   col1, col2, col3 = st.columns(3)
 
   with col1:
-    btn_reservation = translate_text("Table Reservation", lang)
-    if st.button(
-        f"📅 {btn_reservation}", use_container_width=True, type="primary"
-    ):
-      st.session_state.current_page = "reservation_page"
-      st.rerun()
-
-    st.write("<br>", unsafe_allow_html=True)
-
-    btn_cart = translate_text("Shopping Cart", lang)
-    if st.button(f"🛒 {btn_cart}", use_container_width=True, type="secondary"):
-      st.session_state.current_page = "cart_page"
-      st.rerun()
-
-  with col2:
+    # 1. قائمة الطعام (الزر الأول)
     btn_menu = translate_text("Food Menu", lang)
     if st.button(f"📜 {btn_menu}", use_container_width=True, type="primary"):
       st.session_state.current_page = "food_menu_page"
@@ -163,11 +149,27 @@ elif st.session_state.current_page == "main_menu":
 
     st.write("<br>", unsafe_allow_html=True)
 
+    # 2. حجز الطاولة (الزر الثاني)
+    btn_reservation = translate_text("Table Reservation", lang)
+    if st.button(
+        f"📅 {btn_reservation}", use_container_width=True, type="primary"
+    ):
+      st.session_state.current_page = "reservation_page"
+      st.rerun()
+
+  with col2:
     btn_delivery = translate_text("Delivery", lang)
     if st.button(
         f"🛵 {btn_delivery}", use_container_width=True, type="primary"
     ):
       st.session_state.current_page = "delivery_page"
+      st.rerun()
+
+    st.write("<br>", unsafe_allow_html=True)
+
+    btn_cart = translate_text("Shopping Cart", lang)
+    if st.button(f"🛒 {btn_cart}", use_container_width=True, type="secondary"):
+      st.session_state.current_page = "cart_page"
       st.rerun()
 
   with col3:
