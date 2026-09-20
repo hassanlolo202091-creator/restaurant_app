@@ -5,18 +5,19 @@ from translate import Translator
 
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 
-# إجبار التنسيق على عرض الأرقام باللغة الإنجليزية
+# إجبار جميع حقول الأرقام والعدادات على عرض الأرقام باللغة الإنجليزية (1, 2, 3)
 st.markdown(
     """
     <style>
-    input[type="number"], .stNumberInput input, select, option {
+    /* إجبار الأرقام داخل العدادات وخانات الإدخال على الخط اللاتيني الإنجليزي */
+    input, .stNumberInput input, div[data-baseweb="input"] input {
         direction: ltr !important;
-        font-feature-settings: "tnam" 0, "numr" 0 !important;
-        font-variant-numeric: lining-nums tabular-nums !important;
         font-family: Arial, Helvetica, sans-serif !important;
+        font-variant-numeric: lining-nums tabular-nums !important;
+        -webkit-locale: "en-US" !important;
     }
     </style>
-    """,
+""",
     unsafe_allow_html=True,
 )
 
@@ -288,17 +289,19 @@ else:
           st.subheader(display_name)
           st.write(f"{item['price']} {currency_text}")
         with c2:
-          # استخدام selectbox لضمان عرض الأرقام بالإنجليزية (1, 2, 3...) دائماً
-          qty = st.selectbox(
+          # العداد الأصلي (البلس والماينص)
+          qty = st.number_input(
               qty_text,
-              options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+              min_value=1,
+              value=1,
+              step=1,
               key=f"qty_{item['id']}",
               label_visibility="collapsed",
           )
         with c3:
           if st.button(add_btn_text, key=f"btn_{item['id']}"):
             st.session_state.cart[display_name] = (
-                st.session_state.cart.get(display_name, 0) + qty
+                st.session_state.cart.get(display_name, 0) + int(qty)
             )
             st.success(
                 f"{translate_text('Added', lang)} {display_name}"
@@ -355,7 +358,9 @@ else:
     with tab3:
       st.header(tab3_text)
       res_name = st.text_input(res_name_label)
-      res_guests = st.number_input(guests_label, min_value=1, value=2)
+      res_guests = st.number_input(
+          guests_label, min_value=1, value=2, step=1
+      )
       res_date = st.date_input(date_label)
       res_time = st.time_input(time_label)
 
@@ -364,7 +369,7 @@ else:
           reservations = load_data(RESERVATIONS_FILE)
           reservations.append({
               "name": res_name,
-              "guests": res_guests,
+              "guests": int(res_guests),
               "date": str(res_date),
               "time": str(res_time),
           })
