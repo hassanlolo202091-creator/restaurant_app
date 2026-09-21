@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import streamlit as st
 from translate import Translator
 
@@ -38,6 +39,13 @@ DEFAULT_MENU = [
 ]
 
 ALL_TABLES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+ORDER_STAGES = [
+    "Order Received",
+    "Preparing",
+    "Out for Delivery",
+    "Delivered",
+]
 
 
 # إخفاء المؤشر والملاحظة أثناء تنفيذ الترجمة
@@ -117,6 +125,9 @@ if "admin_language" not in st.session_state:
 
 if "cart" not in st.session_state:
   st.session_state.cart = {}
+
+if "last_order_id" not in st.session_state:
+  st.session_state.last_order_id = None
 
 
 # ==========================================
@@ -238,17 +249,21 @@ elif st.session_state.current_page == "admin_page":
       orders = load_data(ORDERS_FILE)
       if orders:
         for idx, o in enumerate(reversed(orders), 1):
+          order_id = o.get("order_id", f"#{idx}")
+          current_status = o.get("status", "Order Received")
+
           with st.expander(
-              f"{translate_text('Order', admin_lang)} #{idx} -"
-              f" {translate_text('Customer', admin_lang)}: {o.get('customer')} |"
-              f" {translate_text('Total', admin_lang)}: {o.get('total')}"
-              f" {translate_text('AED', admin_lang)}"
+              f"Order {order_id} - {o.get('customer')} | Total:"
+              f" {o.get('total')} {translate_text('AED', admin_lang)} | Status:"
+              f" {translate_text(current_status, admin_lang)}"
           ):
             st.write(
                 f"**{translate_text('Order Type', admin_lang)}:**"
                 f" {o.get('order_type', '-')}"
             )
-            st.write(f"**{translate_text('Phone', admin_lang)}:** {o.get('phone', '-')}")
+            st.write(
+                f"**{translate_text('Phone', admin_lang)}:** {o.get('phone', '-')}"
+            )
             if "table" in o:
               st.write(
                   f"**{translate_text('Table Number', admin_lang)}:**"
@@ -259,8 +274,37 @@ elif st.session_state.current_page == "admin_page":
                   f"**{translate_text('Delivery Address', admin_lang)}:**"
                   f" {o.get('address')}"
               )
+
+            st.write(f"**{translate_text('Items', admin_lang)}:**")
             for item_name, qty in o.get("items", {}).items():
               st.write(f"- {item_name} × {qty}")
+
+            # تغيير حالة الطلب من قبل الأدمن
+            st.markdown("---")
+            st.write(
+                f"**{translate_text('Update Order Status', admin_lang)}:**"
+            )
+            new_status = st.selectbox(
+                translate_text("Select Status", admin_lang),
+                options=ORDER_STAGES,
+                index=ORDER_STAGES.index(current_status)
+                if current_status in ORDER_STAGES
+                else 0,
+                key=f"status_select_{order_id}",
+            )
+            if st.button(
+                translate_text("Save Status", admin_lang),
+                key=f"save_status_{order_id}",
+            ):
+              for real_order in orders:
+                if real_order.get("order_id") == order_id:
+                  real_order["status"] = new_status
+                  break
+              save_data(ORDERS_FILE, orders)
+              st.success(
+                  translate_text("Status updated successfully!", admin_lang)
+              )
+              st.rerun()
       else:
         st.info(translate_text("No orders yet", admin_lang))
 
@@ -270,11 +314,12 @@ elif st.session_state.current_page == "admin_page":
       if reservations:
         for r in reversed(reservations):
           st.write(
-              f"📌 **{r.get('name')}** - {translate_text('Table Number', admin_lang)}:"
-              f" {r.get('table_number')} | {translate_text('Phone', admin_lang)}:"
-              f" {r.get('phone')} | {translate_text('Date', admin_lang)}:"
-              f" {r.get('date')} | {translate_text('Time', admin_lang)}:"
-              f" {r.get('time')}"
+              f"📌 **{r.get('name')}** -"
+              f" {translate_text('Table Number', admin_lang)}:"
+              f" {r.get('table_number')} |"
+              f" {translate_text('Phone', admin_lang)}: {r.get('phone')} |"
+              f" {translate_text('Date', admin_lang)}: {r.get('date')} |"
+              f" {translate_text('Time', admin_lang)}: {r.get('time')}"
           )
       else:
         st.info(translate_text("No reservations yet", admin_lang))
@@ -373,11 +418,12 @@ elif st.session_state.current_page in [
               st.session_state.cart.get(display_name, 0) + int(qty)
           )
           st.success(
-              f"{translate_text('Added', lang)} {display_name} {translate_text('successfully', lang)}"
+              f"{translate_text('Added', lang)} {display_name}"
+              f" {translate_text('successfully', lang)}"
           )
           st.rerun()
 
-  # 2. صفحة سلة المشتريات (تخير بين أكل داخل المطعم أو دليفري)
+  # 2. صفحة سلة المشتريات
   elif st.session_state.current_page == "cart_page":
     st.title(f"🛒 {translate_text('Shopping Cart', lang)}")
     currency_text = translate_text("AED", lang)
@@ -406,7 +452,6 @@ elif st.session_state.current_page in [
       )
       st.write("---")
 
-      # السؤال عن نوع الطلب
       st.subheader(
           translate_text("Would you like to dine-in or delivery?", lang)
       )
@@ -430,7 +475,7 @@ elif st.session_state.current_page in [
           st.session_state.current_page = "delivery_page"
           st.rerun()
 
-  # 3. صفحة حجز الطاولة (تظهر المواعيد وطاولات فارغة)
+  # 3. صفحة حجز الطاولة
   elif st.session_state.current_page == "reservation_page":
     st.title(f"🍽️ {translate_text('Dine-in / Table Reservation', lang)}")
 
@@ -453,7 +498,6 @@ elif st.session_state.current_page in [
         translate_text("Confirm Dine-in Reservation", lang), type="primary"
     ):
       if res_name and res_phone and selected_table:
-        # حفظ الحجز
         reservations = load_data(RESERVATIONS_FILE)
         reservations.append({
             "name": res_name,
@@ -464,7 +508,6 @@ elif st.session_state.current_page in [
         })
         save_data(RESERVATIONS_FILE, reservations)
 
-        # حفظ الطلب لو موجود عناصر بالسلة
         if st.session_state.cart:
           orders = load_data(ORDERS_FILE)
           price_dict = {
@@ -474,32 +517,40 @@ elif st.session_state.current_page in [
           total_price = sum(
               price_dict.get(k, 0) * v for k, v in st.session_state.cart.items()
           )
+          order_id = f"ORD-{random.randint(1000, 9999)}"
 
           orders.append({
+              "order_id": order_id,
               "customer": res_name,
               "phone": res_phone,
               "table": selected_table,
               "order_type": "Dine-in",
               "items": st.session_state.cart,
               "total": total_price,
+              "status": "Order Received",
           })
           save_data(ORDERS_FILE, orders)
           st.session_state.cart = {}
+          st.session_state.last_order_id = order_id
 
         st.success(
             translate_text("Reservation & Order submitted successfully!", lang)
         )
+        st.session_state.current_page = "track_orders_page"
+        st.rerun()
       else:
         st.warning(
             translate_text("Please fill in your name, phone and table", lang)
         )
 
-  # 4. صفحة الدليفري
+  # 4. صفحة الدليفري والتأكيد والتحويل لتتبع المشتريات
   elif st.session_state.current_page == "delivery_page":
     st.title(f"🛵 {translate_text('Delivery Details', lang)}")
 
     del_name = st.text_input(translate_text("Your Name", lang))
-    del_address = st.text_area(translate_text("Delivery Location/Address", lang))
+    del_address = st.text_area(
+        translate_text("Delivery Location/Address", lang)
+    )
     del_phone = st.text_input(translate_text("Phone Number", lang))
 
     if st.button(
@@ -514,27 +565,85 @@ elif st.session_state.current_page in [
         total_price = sum(
             price_dict.get(k, 0) * v for k, v in st.session_state.cart.items()
         )
+        order_id = f"ORD-{random.randint(1000, 9999)}"
 
         orders.append({
+            "order_id": order_id,
             "customer": del_name,
             "address": del_address,
             "phone": del_phone,
             "order_type": "Delivery",
             "items": st.session_state.cart,
             "total": total_price,
+            "status": "Order Received",
         })
         save_data(ORDERS_FILE, orders)
         st.session_state.cart = {}
+        st.session_state.last_order_id = order_id
+
         st.success(
             translate_text("Delivery order submitted successfully!", lang)
         )
+        st.session_state.current_page = "track_orders_page"
+        st.rerun()
       else:
         st.warning(translate_text("Please fill in all details", lang))
 
-  # 5. صفحة تتبع الطلبيات
+  # 5. صفحة تتبع الطلبيات والمراحل 4
   elif st.session_state.current_page == "track_orders_page":
     st.title(f"📍 {translate_text('Track Orders', lang)}")
-    st.info(translate_text("No active orders to track currently.", lang))
+
+    orders = load_data(ORDERS_FILE)
+    if not orders:
+      st.info(translate_text("No active orders to track currently.", lang))
+    else:
+      # البحث عن آخر طلب تم إجراؤه
+      last_id = st.session_state.last_order_id
+      current_order = None
+      if last_id:
+        for o in orders:
+          if o.get("order_id") == last_id:
+            current_order = o
+            break
+
+      if not current_order:
+        current_order = orders[-1]
+
+      status = current_order.get("status", "Order Received")
+
+      st.subheader(
+          f"{translate_text('Order Number', lang)}: {current_order.get('order_id')}"
+      )
+      st.write(
+          f"**{translate_text('Customer', lang)}:**"
+          f" {current_order.get('customer')} |"
+          f" **{translate_text('Total', lang)}:** {current_order.get('total')}"
+          f" {translate_text('AED', lang)}"
+      )
+
+      # حساب شريط التقدم
+      stage_index = (
+          ORDER_STAGES.index(status) if status in ORDER_STAGES else 0
+      )
+      progress_value = (stage_index + 1) / len(ORDER_STAGES)
+      st.progress(progress_value)
+
+      # عرض المراحل الأربعة بشكل بصري
+      cols = st.columns(4)
+      stage_icons = ["📥", "🍳", "🛵", "✅"]
+
+      for idx, stage_name in enumerate(ORDER_STAGES):
+        with cols[idx]:
+          translated_stage = translate_text(stage_name, lang)
+          if idx <= stage_index:
+            st.success(f"{stage_icons[idx]} **{translated_stage}**")
+          else:
+            st.info(f"⚪ {translated_stage}")
+
+      st.markdown("---")
+      st.subheader(translate_text("Order Details", lang))
+      for item_name, qty in current_order.get("items", {}).items():
+        st.write(f"- {item_name} × {qty}")
 
   # 6. صفحة تواصل معنا
   elif st.session_state.current_page == "contact_page":
