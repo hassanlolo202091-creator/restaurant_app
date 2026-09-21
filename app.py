@@ -1,6 +1,7 @@
 import json
 import os
 import random
+import time
 import streamlit as st
 from translate import Translator
 
@@ -15,6 +16,14 @@ st.markdown(
         font-family: Arial, Helvetica, sans-serif !important;
         font-variant-numeric: lining-nums tabular-nums !important;
         -webkit-locale: "en-US" !important;
+    }
+    .print-receipt {
+        background-color: #f9f9f9;
+        border: 1px dashed #333;
+        padding: 15px;
+        border-radius: 8px;
+        font-family: 'Courier New', Courier, monospace;
+        color: #111;
     }
     </style>
 """,
@@ -33,9 +42,24 @@ LANGUAGES = {
 }
 
 DEFAULT_MENU = [
-    {"id": 1, "name": "Chicken Shawarma with Garlic", "price": 18.0},
-    {"id": 2, "name": "Grilled Beef Burger", "price": 28.0},
-    {"id": 3, "name": "Fresh Orange Juice", "price": 12.0},
+    {
+        "id": 1,
+        "name": "Chicken Shawarma with Garlic",
+        "price": 18.0,
+        "image": "https://images.unsplash.com/photo-1529006557810-274b9b2fc783?w=300",
+    },
+    {
+        "id": 2,
+        "name": "Grilled Beef Burger",
+        "price": 28.0,
+        "image": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=300",
+    },
+    {
+        "id": 3,
+        "name": "Fresh Orange Juice",
+        "price": 12.0,
+        "image": "https://images.unsplash.com/photo-1613478223719-2ab802602423?w=300",
+    },
 ]
 
 ALL_TABLES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -45,6 +69,12 @@ ORDER_STAGES = [
     "Preparing",
     "Out for Delivery",
     "Delivered",
+]
+
+PAYMENT_METHODS = [
+    "Cash on Delivery",
+    "Card on Delivery",
+    "Online Payment",
 ]
 
 
@@ -90,7 +120,7 @@ def get_available_tables():
   return available
 
 
-def add_menu_item(name_en, price):
+def add_menu_item(name_en, price, image_url=""):
   menu = get_menu()
   new_id = (
       max(
@@ -99,7 +129,16 @@ def add_menu_item(name_en, price):
       )
       + 1
   )
-  menu.append({"id": new_id, "name": name_en.strip(), "price": float(price)})
+  if not image_url:
+    image_url = (
+        "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300"
+    )
+  menu.append({
+      "id": new_id,
+      "name": name_en.strip(),
+      "price": float(price),
+      "image": image_url,
+  })
   save_data(MENU_FILE, menu)
 
 
@@ -217,7 +256,7 @@ elif st.session_state.current_page == "main_menu":
 
 
 # ==========================================
-# 3. لوحة التحكم (Admin Mode)
+# 3. لوحة التحكم (Admin Mode) + طباعة الفواتير
 # ==========================================
 elif st.session_state.current_page == "admin_page":
   lang = st.session_state.app_language
@@ -262,6 +301,10 @@ elif st.session_state.current_page == "admin_page":
                 f" {o.get('order_type', '-')}"
             )
             st.write(
+                f"**{translate_text('Payment Method', admin_lang)}:**"
+                f" {translate_text(o.get('payment_method', '-'), admin_lang)}"
+            )
+            st.write(
                 f"**{translate_text('Phone', admin_lang)}:** {o.get('phone', '-')}"
             )
             if "table" in o:
@@ -279,7 +322,7 @@ elif st.session_state.current_page == "admin_page":
             for item_name, qty in o.get("items", {}).items():
               st.write(f"- {item_name} × {qty}")
 
-            # تغيير حالة الطلب من قبل الأدمن
+            # تحديث الحالة
             st.markdown("---")
             st.write(
                 f"**{translate_text('Update Order Status', admin_lang)}:**"
@@ -305,6 +348,29 @@ elif st.session_state.current_page == "admin_page":
                   translate_text("Status updated successfully!", admin_lang)
               )
               st.rerun()
+
+            # زر طباعة الفاتورة للمطبخ
+            if st.button(
+                f"🖨️ {translate_text('Print Kitchen Receipt', admin_lang)}",
+                key=f"print_{order_id}",
+            ):
+              items_html = "".join([
+                  f"<li>{k} x {v}</li>" for k, v in o.get("items", {}).items()
+              ])
+              receipt_code = f"""
+                            <div class="print-receipt">
+                                <h3>🧾 KITCHEN RECEIPT - {order_id}</h3>
+                                <p><strong>Customer:</strong> {o.get('customer')}</p>
+                                <p><strong>Phone:</strong> {o.get('phone')}</p>
+                                <p><strong>Type:</strong> {o.get('order_type')} | <strong>Payment:</strong> {o.get('payment_method')}</p>
+                                <hr>
+                                <ul>{items_html}</ul>
+                                <hr>
+                                <h4>TOTAL: {o.get('total')} AED</h4>
+                            </div>
+                            """
+              st.markdown(receipt_code, unsafe_allow_html=True)
+
       else:
         st.info(translate_text("No orders yet", admin_lang))
 
@@ -342,9 +408,13 @@ elif st.session_state.current_page == "admin_page":
             value=20.0,
         )
 
+      new_img_input = st.text_input(
+          translate_text("Image URL (Optional)", admin_lang)
+      )
+
       if st.button(translate_text("Add Item", admin_lang)):
         if new_name_input:
-          add_menu_item(new_name_input, new_price_input)
+          add_menu_item(new_name_input, new_price_input, new_img_input)
           st.success(translate_text("Item added successfully!", admin_lang))
           st.rerun()
         else:
@@ -389,7 +459,7 @@ elif st.session_state.current_page in [
     st.session_state.current_page = "main_menu"
     st.rerun()
 
-  # 1. صفحة قائمة الطعام
+  # 1. صفحة قائمة الطعام مع الصور
   if st.session_state.current_page == "food_menu_page":
     st.title(f"📜 {translate_text('Food Menu', lang)}")
     menu_items = get_menu()
@@ -399,10 +469,19 @@ elif st.session_state.current_page in [
 
     for item in menu_items:
       display_name = translate_text(item["name"], lang)
-      c1, c2, c3 = st.columns([3, 2, 2])
+      c_img, c1, c2, c3 = st.columns([1.5, 3, 2, 2])
+
+      with c_img:
+        img_url = item.get(
+            "image",
+            "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300",
+        )
+        st.image(img_url, use_container_width=True)
+
       with c1:
         st.subheader(display_name)
         st.write(f"{item['price']} {currency_text}")
+
       with c2:
         qty = st.number_input(
             qty_text,
@@ -412,6 +491,7 @@ elif st.session_state.current_page in [
             key=f"qty_{item['id']}",
             label_visibility="collapsed",
         )
+
       with c3:
         if st.button(add_btn_text, key=f"btn_{item['id']}"):
           st.session_state.cart[display_name] = (
@@ -422,6 +502,7 @@ elif st.session_state.current_page in [
               f" {translate_text('successfully', lang)}"
           )
           st.rerun()
+      st.markdown("---")
 
   # 2. صفحة سلة المشتريات
   elif st.session_state.current_page == "cart_page":
@@ -475,7 +556,7 @@ elif st.session_state.current_page in [
           st.session_state.current_page = "delivery_page"
           st.rerun()
 
-  # 3. صفحة حجز الطاولة
+  # 3. صفحة حجز الطاولة + تحديد طريقة الدفع
   elif st.session_state.current_page == "reservation_page":
     st.title(f"🍽️ {translate_text('Dine-in / Table Reservation', lang)}")
 
@@ -493,6 +574,11 @@ elif st.session_state.current_page in [
 
     res_date = st.date_input(translate_text("Reservation Date", lang))
     res_time = st.time_input(translate_text("Arrival Time", lang))
+
+    selected_payment = st.radio(
+        translate_text("Payment Method", lang),
+        options=[translate_text(p, lang) for p in PAYMENT_METHODS],
+    )
 
     if st.button(
         translate_text("Confirm Dine-in Reservation", lang), type="primary"
@@ -525,6 +611,7 @@ elif st.session_state.current_page in [
               "phone": res_phone,
               "table": selected_table,
               "order_type": "Dine-in",
+              "payment_method": selected_payment,
               "items": st.session_state.cart,
               "total": total_price,
               "status": "Order Received",
@@ -543,7 +630,7 @@ elif st.session_state.current_page in [
             translate_text("Please fill in your name, phone and table", lang)
         )
 
-  # 4. صفحة الدليفري والتأكيد والتحويل لتتبع المشتريات
+  # 4. صفحة الدليفري + تحديد طريقة الدفع
   elif st.session_state.current_page == "delivery_page":
     st.title(f"🛵 {translate_text('Delivery Details', lang)}")
 
@@ -552,6 +639,11 @@ elif st.session_state.current_page in [
         translate_text("Delivery Location/Address", lang)
     )
     del_phone = st.text_input(translate_text("Phone Number", lang))
+
+    selected_payment = st.radio(
+        translate_text("Payment Method", lang),
+        options=[translate_text(p, lang) for p in PAYMENT_METHODS],
+    )
 
     if st.button(
         translate_text("Confirm Delivery Order", lang), type="primary"
@@ -573,6 +665,7 @@ elif st.session_state.current_page in [
             "address": del_address,
             "phone": del_phone,
             "order_type": "Delivery",
+            "payment_method": selected_payment,
             "items": st.session_state.cart,
             "total": total_price,
             "status": "Order Received",
@@ -589,7 +682,7 @@ elif st.session_state.current_page in [
       else:
         st.warning(translate_text("Please fill in all details", lang))
 
-  # 5. صفحة تتبع الطلبيات والمراحل 4
+  # 5. صفحة تتبع الطلبيات + التحديث التلقائي التنسيقي
   elif st.session_state.current_page == "track_orders_page":
     st.title(f"📍 {translate_text('Track Orders', lang)}")
 
@@ -597,7 +690,6 @@ elif st.session_state.current_page in [
     if not orders:
       st.info(translate_text("No active orders to track currently.", lang))
     else:
-      # البحث عن آخر طلب تم إجراؤه
       last_id = st.session_state.last_order_id
       current_order = None
       if last_id:
@@ -617,18 +709,20 @@ elif st.session_state.current_page in [
       st.write(
           f"**{translate_text('Customer', lang)}:**"
           f" {current_order.get('customer')} |"
+          f" **{translate_text('Payment Method', lang)}:**"
+          f" {current_order.get('payment_method', '-')} |"
           f" **{translate_text('Total', lang)}:** {current_order.get('total')}"
           f" {translate_text('AED', lang)}"
       )
 
-      # حساب شريط التقدم
+      # شريط التقدم
       stage_index = (
           ORDER_STAGES.index(status) if status in ORDER_STAGES else 0
       )
       progress_value = (stage_index + 1) / len(ORDER_STAGES)
       st.progress(progress_value)
 
-      # عرض المراحل الأربعة بشكل بصري
+      # عرض المراحل
       cols = st.columns(4)
       stage_icons = ["📥", "🍳", "🛵", "✅"]
 
@@ -644,6 +738,10 @@ elif st.session_state.current_page in [
       st.subheader(translate_text("Order Details", lang))
       for item_name, qty in current_order.get("items", {}).items():
         st.write(f"- {item_name} × {qty}")
+
+      # تحديث تلقائي كل 5 ثوانٍ لشاشة التتبع لتنعكس حالة الطلب الحية
+      time.sleep(5)
+      st.rerun()
 
   # 6. صفحة تواصل معنا
   elif st.session_state.current_page == "contact_page":
