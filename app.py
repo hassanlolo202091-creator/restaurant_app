@@ -153,21 +153,44 @@ def delete_menu_item(item_id):
   save_data(MENU_FILE, menu)
 
 
-# --- تهيئة الجلسة ---
+# --- استرجاع البيانات المجهزة من الرابط عند إعادة التحميل (Refresh) ---
+query_params = st.query_params
+
 if "app_language" not in st.session_state:
-  st.session_state.app_language = None
+  st.session_state.app_language = query_params.get("lang", None)
 
 if "current_page" not in st.session_state:
-  st.session_state.current_page = "main_menu"
+  st.session_state.current_page = query_params.get("page", "main_menu")
 
 if "admin_language" not in st.session_state:
   st.session_state.admin_language = None
 
 if "cart" not in st.session_state:
-  st.session_state.cart = {}
+  cart_param = query_params.get("cart", "{}")
+  try:
+    st.session_state.cart = json.loads(cart_param)
+  except Exception:
+    st.session_state.cart = {}
 
 if "last_order_id" not in st.session_state:
-  st.session_state.last_order_id = None
+  st.session_state.last_order_id = query_params.get("order_id", None)
+
+
+# دالة لتحديث رابط المتصفح بحالة الجلسة للحفاظ عليها عند الريفريش
+def update_url_params():
+  params = {}
+  if st.session_state.app_language:
+    params["lang"] = st.session_state.app_language
+  if st.session_state.current_page:
+    params["page"] = st.session_state.current_page
+  if st.session_state.cart:
+    params["cart"] = json.dumps(st.session_state.cart)
+  if st.session_state.last_order_id:
+    params["order_id"] = st.session_state.last_order_id
+
+  st.query_params.clear()
+  for k, v in params.items():
+    st.query_params[k] = v
 
 
 # ==========================================
@@ -182,6 +205,7 @@ if st.session_state.app_language is None:
     with cols[idx]:
       if st.button(lang_name, use_container_width=True, type="primary"):
         st.session_state.app_language = lang_code
+        update_url_params()
         st.rerun()
 
 # ==========================================
@@ -194,6 +218,7 @@ elif st.session_state.current_page == "main_menu":
   if st.sidebar.button("Change Language / تغيير اللغة"):
     st.session_state.app_language = None
     st.session_state.current_page = "main_menu"
+    update_url_params()
     st.rerun()
 
   welcome_title = translate_text("Welcome to our restaurant", lang)
@@ -206,6 +231,7 @@ elif st.session_state.current_page == "main_menu":
     btn_menu = translate_text("Food Menu", lang)
     if st.button(f"📜 {btn_menu}", use_container_width=True, type="primary"):
       st.session_state.current_page = "food_menu_page"
+      update_url_params()
       st.rerun()
 
     st.write("<br>", unsafe_allow_html=True)
@@ -215,6 +241,7 @@ elif st.session_state.current_page == "main_menu":
         f"📅 {btn_reservation}", use_container_width=True, type="primary"
     ):
       st.session_state.current_page = "reservation_page"
+      update_url_params()
       st.rerun()
 
   with col2:
@@ -223,6 +250,7 @@ elif st.session_state.current_page == "main_menu":
         f"🛵 {btn_delivery}", use_container_width=True, type="primary"
     ):
       st.session_state.current_page = "delivery_page"
+      update_url_params()
       st.rerun()
 
     st.write("<br>", unsafe_allow_html=True)
@@ -230,6 +258,7 @@ elif st.session_state.current_page == "main_menu":
     btn_cart = translate_text("Shopping Cart", lang)
     if st.button(f"🛒 {btn_cart}", use_container_width=True, type="secondary"):
       st.session_state.current_page = "cart_page"
+      update_url_params()
       st.rerun()
 
   with col3:
@@ -238,6 +267,7 @@ elif st.session_state.current_page == "main_menu":
         f"📍 {btn_track}", use_container_width=True, type="secondary"
     ):
       st.session_state.current_page = "track_orders_page"
+      update_url_params()
       st.rerun()
 
     st.write("<br>", unsafe_allow_html=True)
@@ -247,23 +277,26 @@ elif st.session_state.current_page == "main_menu":
         f"📞 {btn_contact}", use_container_width=True, type="secondary"
     ):
       st.session_state.current_page = "contact_page"
+      update_url_params()
       st.rerun()
 
   st.write("---")
   btn_admin = translate_text("Admin Dashboard", lang)
   if st.button(f"🔒 {btn_admin}", use_container_width=True):
     st.session_state.current_page = "admin_page"
+    update_url_params()
     st.rerun()
 
 
 # ==========================================
-# 3. لوحة التحكم (Admin Mode) + إتاحة رفع/إدخال الصورة
+# 3. لوحة التحكم (Admin Mode)
 # ==========================================
 elif st.session_state.current_page == "admin_page":
   lang = st.session_state.app_language
 
   if st.sidebar.button("Back to Main / العودة للرئيسية"):
     st.session_state.current_page = "main_menu"
+    update_url_params()
     st.rerun()
 
   admin_lang = st.session_state.admin_language if st.session_state.admin_language else lang
@@ -407,7 +440,6 @@ elif st.session_state.current_page == "admin_page":
             value=20.0,
         )
 
-      # خيارات إضافة الصورة: إما عبر رابط من جوجل أو تحميل ملف من الجهاز
       img_option = st.radio(
           translate_text("Image Source", admin_lang),
           options=[
@@ -478,6 +510,7 @@ elif st.session_state.current_page in [
 
   if st.sidebar.button("Back to Main / العودة للرئيسية"):
     st.session_state.current_page = "main_menu"
+    update_url_params()
     st.rerun()
 
   # 1. صفحة قائمة الطعام
@@ -518,6 +551,7 @@ elif st.session_state.current_page in [
           st.session_state.cart[display_name] = (
               st.session_state.cart.get(display_name, 0) + int(qty)
           )
+          update_url_params()
           st.success(
               f"{translate_text('Added', lang)} {display_name}"
               f" {translate_text('successfully', lang)}"
@@ -566,6 +600,7 @@ elif st.session_state.current_page in [
             type="primary",
         ):
           st.session_state.current_page = "reservation_page"
+          update_url_params()
           st.rerun()
 
       with col_del:
@@ -575,6 +610,7 @@ elif st.session_state.current_page in [
             type="primary",
         ):
           st.session_state.current_page = "delivery_page"
+          update_url_params()
           st.rerun()
 
   # 3. صفحة حجز الطاولة
@@ -645,6 +681,7 @@ elif st.session_state.current_page in [
             translate_text("Reservation & Order submitted successfully!", lang)
         )
         st.session_state.current_page = "track_orders_page"
+        update_url_params()
         st.rerun()
       else:
         st.warning(
@@ -699,6 +736,7 @@ elif st.session_state.current_page in [
             translate_text("Delivery order submitted successfully!", lang)
         )
         st.session_state.current_page = "track_orders_page"
+        update_url_params()
         st.rerun()
       else:
         st.warning(translate_text("Please fill in all details", lang))
