@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import random
@@ -120,7 +121,7 @@ def get_available_tables():
   return available
 
 
-def add_menu_item(name_en, price, image_url=""):
+def add_menu_item(name_en, price, image_data=""):
   menu = get_menu()
   new_id = (
       max(
@@ -129,15 +130,15 @@ def add_menu_item(name_en, price, image_url=""):
       )
       + 1
   )
-  if not image_url:
-    image_url = (
+  if not image_data:
+    image_data = (
         "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300"
     )
   menu.append({
       "id": new_id,
       "name": name_en.strip(),
       "price": float(price),
-      "image": image_url,
+      "image": image_data,
   })
   save_data(MENU_FILE, menu)
 
@@ -256,7 +257,7 @@ elif st.session_state.current_page == "main_menu":
 
 
 # ==========================================
-# 3. لوحة التحكم (Admin Mode) + طباعة الفواتير
+# 3. لوحة التحكم (Admin Mode) + إتاحة رفع/إدخال الصورة
 # ==========================================
 elif st.session_state.current_page == "admin_page":
   lang = st.session_state.app_language
@@ -322,7 +323,6 @@ elif st.session_state.current_page == "admin_page":
             for item_name, qty in o.get("items", {}).items():
               st.write(f"- {item_name} × {qty}")
 
-            # تحديث الحالة
             st.markdown("---")
             st.write(
                 f"**{translate_text('Update Order Status', admin_lang)}:**"
@@ -349,7 +349,6 @@ elif st.session_state.current_page == "admin_page":
               )
               st.rerun()
 
-            # زر طباعة الفاتورة للمطبخ
             if st.button(
                 f"🖨️ {translate_text('Print Kitchen Receipt', admin_lang)}",
                 key=f"print_{order_id}",
@@ -408,13 +407,35 @@ elif st.session_state.current_page == "admin_page":
             value=20.0,
         )
 
-      new_img_input = st.text_input(
-          translate_text("Image URL (Optional)", admin_lang)
+      # خيارات إضافة الصورة: إما عبر رابط من جوجل أو تحميل ملف من الجهاز
+      img_option = st.radio(
+          translate_text("Image Source", admin_lang),
+          options=[
+              translate_text("Image URL (Google/Web)", admin_lang),
+              translate_text("Upload from Device", admin_lang),
+          ],
+          horizontal=True,
       )
+
+      final_image_data = ""
+      if "URL" in img_option or "رابط" in img_option or "Google" in img_option:
+        final_image_data = st.text_input(
+            translate_text("Image URL", admin_lang)
+        )
+      else:
+        uploaded_file = st.file_uploader(
+            translate_text("Choose image file", admin_lang),
+            type=["png", "jpg", "jpeg", "webp"],
+        )
+        if uploaded_file is not None:
+          bytes_data = uploaded_file.getvalue()
+          base64_str = base64.b64encode(bytes_data).decode()
+          mime_type = uploaded_file.type
+          final_image_data = f"data:{mime_type};base64,{base64_str}"
 
       if st.button(translate_text("Add Item", admin_lang)):
         if new_name_input:
-          add_menu_item(new_name_input, new_price_input, new_img_input)
+          add_menu_item(new_name_input, new_price_input, final_image_data)
           st.success(translate_text("Item added successfully!", admin_lang))
           st.rerun()
         else:
@@ -459,7 +480,7 @@ elif st.session_state.current_page in [
     st.session_state.current_page = "main_menu"
     st.rerun()
 
-  # 1. صفحة قائمة الطعام مع الصور
+  # 1. صفحة قائمة الطعام
   if st.session_state.current_page == "food_menu_page":
     st.title(f"📜 {translate_text('Food Menu', lang)}")
     menu_items = get_menu()
@@ -556,7 +577,7 @@ elif st.session_state.current_page in [
           st.session_state.current_page = "delivery_page"
           st.rerun()
 
-  # 3. صفحة حجز الطاولة + تحديد طريقة الدفع
+  # 3. صفحة حجز الطاولة
   elif st.session_state.current_page == "reservation_page":
     st.title(f"🍽️ {translate_text('Dine-in / Table Reservation', lang)}")
 
@@ -630,7 +651,7 @@ elif st.session_state.current_page in [
             translate_text("Please fill in your name, phone and table", lang)
         )
 
-  # 4. صفحة الدليفري + تحديد طريقة الدفع
+  # 4. صفحة الدليفري
   elif st.session_state.current_page == "delivery_page":
     st.title(f"🛵 {translate_text('Delivery Details', lang)}")
 
@@ -682,7 +703,7 @@ elif st.session_state.current_page in [
       else:
         st.warning(translate_text("Please fill in all details", lang))
 
-  # 5. صفحة تتبع الطلبيات + التحديث التلقائي التنسيقي
+  # 5. صفحة تتبع الطلبيات
   elif st.session_state.current_page == "track_orders_page":
     st.title(f"📍 {translate_text('Track Orders', lang)}")
 
@@ -715,14 +736,12 @@ elif st.session_state.current_page in [
           f" {translate_text('AED', lang)}"
       )
 
-      # شريط التقدم
       stage_index = (
           ORDER_STAGES.index(status) if status in ORDER_STAGES else 0
       )
       progress_value = (stage_index + 1) / len(ORDER_STAGES)
       st.progress(progress_value)
 
-      # عرض المراحل
       cols = st.columns(4)
       stage_icons = ["📥", "🍳", "🛵", "✅"]
 
@@ -739,7 +758,6 @@ elif st.session_state.current_page in [
       for item_name, qty in current_order.get("items", {}).items():
         st.write(f"- {item_name} × {qty}")
 
-      # تحديث تلقائي كل 5 ثوانٍ لشاشة التتبع لتنعكس حالة الطلب الحية
       time.sleep(5)
       st.rerun()
 
