@@ -157,6 +157,23 @@ def add_menu_item(
   save_data(MENU_FILE, menu)
 
 
+def update_menu_item(
+    item_id, name_en, price, cost, track_stock, stock_qty, image_data=""
+):
+  menu = get_menu()
+  for item in menu:
+    if isinstance(item, dict) and item.get("id") == item_id:
+      item["name"] = name_en.strip()
+      item["price"] = float(price)
+      item["cost"] = float(cost)
+      item["track_stock"] = bool(track_stock)
+      item["stock"] = int(stock_qty) if track_stock else 0
+      if image_data:
+        item["image"] = image_data
+      break
+  save_data(MENU_FILE, menu)
+
+
 def delete_menu_item(item_id):
   menu = get_menu()
   menu = [
@@ -206,6 +223,9 @@ if "cart" not in st.session_state:
 
 if "last_order_id" not in st.session_state:
   st.session_state.last_order_id = query_params.get("order_id", None)
+
+if "editing_item_id" not in st.session_state:
+  st.session_state.editing_item_id = None
 
 
 def update_url_params():
@@ -320,7 +340,7 @@ elif st.session_state.current_page == "main_menu":
 
 
 # ==========================================
-# 3. لوحة التحكم (Admin Mode)
+# 3. لوحة التحكم (Admin Mode) - مع زر التعديل المباشر
 # ==========================================
 elif st.session_state.current_page == "admin_page":
   lang = st.session_state.app_language
@@ -540,7 +560,7 @@ elif st.session_state.current_page == "admin_page":
       current_menu = get_menu()
 
       for item in current_menu:
-        c1, c2 = st.columns([3, 1])
+        c1, c2, c3 = st.columns([3, 1, 1])
         disp_name = translate_text(item["name"], admin_lang)
 
         if item.get("track_stock", False):
@@ -570,11 +590,100 @@ elif st.session_state.current_page == "admin_page":
 
         with c2:
           if st.button(
+              translate_text("Edit", admin_lang), key=f"edit_btn_{item['id']}"
+          ):
+            st.session_state.editing_item_id = (
+                None
+                if st.session_state.editing_item_id == item["id"]
+                else item["id"]
+            )
+            st.rerun()
+
+        with c3:
+          if st.button(
               translate_text("Delete", admin_lang), key=f"del_{item['id']}"
           ):
             delete_menu_item(item["id"])
             st.success(translate_text("Deleted successfully", admin_lang))
             st.rerun()
+
+        # نافذة التعديل المباشر المنسدلة للصنف المختار
+        if st.session_state.editing_item_id == item["id"]:
+          with st.container():
+            st.markdown(
+                f"##### ✏️ {translate_text('Edit Item', admin_lang)}:"
+                f" {disp_name}"
+            )
+            ec1, ec2, ec3 = st.columns([3, 1, 1])
+
+            with ec1:
+              e_name = st.text_input(
+                  translate_text("Item Name", admin_lang),
+                  value=item["name"],
+                  key=f"e_name_{item['id']}",
+              )
+            with ec2:
+              e_price = st.number_input(
+                  translate_text("Price", admin_lang),
+                  value=float(item["price"]),
+                  key=f"e_price_{item['id']}",
+              )
+            with ec3:
+              e_cost = st.number_input(
+                  translate_text("Cost Price", admin_lang),
+                  value=float(item.get("cost", 0.0)),
+                  key=f"e_cost_{item['id']}",
+              )
+
+            e_track = st.checkbox(
+                translate_text(
+                    "Enable inventory tracking for this item?", admin_lang
+                ),
+                value=item.get("track_stock", False),
+                key=f"e_track_{item['id']}",
+            )
+
+            e_stock = item.get("stock", 0)
+            if e_track:
+              e_stock = st.number_input(
+                  translate_text("Available Stock Quantity", admin_lang),
+                  min_value=0,
+                  value=int(item.get("stock", 0)),
+                  key=f"e_stock_{item['id']}",
+              )
+
+            e_img = st.text_input(
+                translate_text("Image URL", admin_lang),
+                value=item.get("image", ""),
+                key=f"e_img_{item['id']}",
+            )
+
+            col_save, col_cancel = st.columns([1, 1])
+            with col_save:
+              if st.button(
+                  translate_text("Save Changes", admin_lang),
+                  key=f"save_edit_{item['id']}",
+                  type="primary",
+              ):
+                update_menu_item(
+                    item["id"], e_name, e_price, e_cost, e_track, e_stock, e_img
+                )
+                st.session_state.editing_item_id = None
+                st.success(
+                    translate_text(
+                        "Item updated successfully!", admin_lang
+                    )
+                )
+                st.rerun()
+
+            with col_cancel:
+              if st.button(
+                  translate_text("Cancel", admin_lang),
+                  key=f"cancel_edit_{item['id']}",
+              ):
+                st.session_state.editing_item_id = None
+                st.rerun()
+            st.markdown("---")
 
     # ==========================================
     # 4. التقرير المالي المتقدم
@@ -720,7 +829,7 @@ elif st.session_state.current_page in [
     update_url_params()
     st.rerun()
 
-  # 1. صفحة قائمة الطعام للزبون مع إصلاح خطأ الـ Min/Max
+  # 1. صفحة قائمة الطعام للزبون
   if st.session_state.current_page == "food_menu_page":
     st.title(f"📜 {translate_text('Food Menu', lang)}")
     menu_items = get_menu()
@@ -751,7 +860,6 @@ elif st.session_state.current_page in [
           st.error(f"🔴 {translate_text('Out of Stock', lang)}")
 
       with c2:
-        # إصلاح خطأ الحد الأقصى للمخزون ومنع الاستثناء
         max_qty_val = (
             max(1, item.get("stock", 1))
             if item.get("track_stock", False)
