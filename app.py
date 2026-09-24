@@ -1,4 +1,5 @@
 import base64
+import datetime
 import json
 import os
 import random
@@ -47,18 +48,27 @@ DEFAULT_MENU = [
         "id": 1,
         "name": "Chicken Shawarma with Garlic",
         "price": 18.0,
+        "cost": 8.0,
+        "track_stock": False,
+        "stock": 0,
         "image": "https://images.unsplash.com/photo-1529006557810-274b9b2fc783?w=300",
     },
     {
         "id": 2,
         "name": "Grilled Beef Burger",
         "price": 28.0,
+        "cost": 12.0,
+        "track_stock": True,
+        "stock": 15,
         "image": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=300",
     },
     {
         "id": 3,
         "name": "Fresh Orange Juice",
         "price": 12.0,
+        "cost": 4.0,
+        "track_stock": False,
+        "stock": 0,
         "image": "https://images.unsplash.com/photo-1613478223719-2ab802602423?w=300",
     },
 ]
@@ -79,7 +89,6 @@ PAYMENT_METHODS = [
 ]
 
 
-# إخفاء المؤشر والملاحظة أثناء تنفيذ الترجمة
 @st.cache_data(show_spinner=False)
 def translate_text(text, target_lang):
   if target_lang == "en" or not text:
@@ -121,7 +130,9 @@ def get_available_tables():
   return available
 
 
-def add_menu_item(name_en, price, image_data=""):
+def add_menu_item(
+    name_en, price, cost, track_stock, stock_qty, image_data=""
+):
   menu = get_menu()
   new_id = (
       max(
@@ -138,6 +149,9 @@ def add_menu_item(name_en, price, image_data=""):
       "id": new_id,
       "name": name_en.strip(),
       "price": float(price),
+      "cost": float(cost),
+      "track_stock": bool(track_stock),
+      "stock": int(stock_qty) if track_stock else 0,
       "image": image_data,
   })
   save_data(MENU_FILE, menu)
@@ -150,6 +164,31 @@ def delete_menu_item(item_id):
       for item in menu
       if isinstance(item, dict) and item.get("id") != item_id
   ]
+  save_data(MENU_FILE, menu)
+
+
+def deduct_stock_for_order(cart_items):
+  menu = get_menu()
+  menu_dict = {
+      translate_text(item["name"], st.session_state.app_language): item
+      for item in menu
+  }
+
+  for disp_name, qty in cart_items.items():
+    # البحث بالاسم المترجم أو بالاسم الإنجليزي الأصلي
+    target_item = None
+    for item in menu:
+      if (
+          item["name"] == disp_name
+          or translate_text(item["name"], st.session_state.app_language)
+          == disp_name
+      ):
+        target_item = item
+        break
+
+    if target_item and target_item.get("track_stock", False):
+      target_item["stock"] = max(0, target_item.get("stock", 0) - int(qty))
+
   save_data(MENU_FILE, menu)
 
 
@@ -176,7 +215,6 @@ if "last_order_id" not in st.session_state:
   st.session_state.last_order_id = query_params.get("order_id", None)
 
 
-# دالة لتحديث رابط المتصفح بحالة الجلسة للحفاظ عليها عند الريفريش
 def update_url_params():
   params = {}
   if st.session_state.app_language:
@@ -289,7 +327,7 @@ elif st.session_state.current_page == "main_menu":
 
 
 # ==========================================
-# 3. لوحة التحكم (Admin Mode)
+# 3. لوحة التحكم (Admin Mode) - تشمل الأرباح والمخزون
 # ==========================================
 elif st.session_state.current_page == "admin_page":
   lang = st.session_state.app_language
@@ -311,11 +349,15 @@ elif st.session_state.current_page == "admin_page":
 
     tab_a1_text = translate_text("Incoming Orders", admin_lang)
     tab_a2_text = translate_text("Reservations", admin_lang)
-    tab_a3_text = translate_text("Manage Menu", admin_lang)
+    tab_a3_text = translate_text("Manage Menu & Inventory", admin_lang)
+    tab_a4_text = translate_text("Reports & Profits", admin_lang)
 
-    tab1, tab2, tab3 = st.tabs(
-        [f"📦 {tab_a1_text}", f"📅 {tab_a2_text}", f"📜 {tab_a3_text}"]
-    )
+    tab1, tab2, tab3, tab4 = st.tabs([
+        f"📦 {tab_a1_text}",
+        f"📅 {tab_a2_text}",
+        f"📜 {tab_a3_text}",
+        f"📈 {tab_a4_text}",
+    ])
 
     with tab1:
       st.header(tab_a1_text)
@@ -402,7 +444,6 @@ elif st.session_state.current_page == "admin_page":
                             </div>
                             """
               st.markdown(receipt_code, unsafe_allow_html=True)
-
       else:
         st.info(translate_text("No orders yet", admin_lang))
 
@@ -428,7 +469,7 @@ elif st.session_state.current_page == "admin_page":
           translate_text("Add New Menu Item (English Source)", admin_lang)
       )
 
-      col_name, col_price = st.columns([3, 1])
+      col_name, col_price, col_cost = st.columns([3, 1, 1])
       with col_name:
         new_name_input = st.text_input(
             translate_text("Item Name (English)", admin_lang)
@@ -438,6 +479,28 @@ elif st.session_state.current_page == "admin_page":
             f"{translate_text('Price', admin_lang)} ({translate_text('AED', admin_lang)})",
             min_value=1.0,
             value=20.0,
+        )
+      with col_cost:
+        new_cost_input = st.number_input(
+            f"{translate_text('Cost Price', admin_lang)} ({translate_text('AED', admin_lang)})",
+            min_value=0.0,
+            value=8.0,
+        )
+
+      # خيارات المخزون الاختياري
+      st.write(f"**{translate_text('Inventory Settings', admin_lang)}:**")
+      track_stock_opt = st.checkbox(
+          translate_text(
+              "Enable inventory tracking for this item?", admin_lang
+          )
+      )
+
+      stock_qty_input = 0
+      if track_stock_opt:
+        stock_qty_input = st.number_input(
+            translate_text("Available Stock Quantity", admin_lang),
+            min_value=0,
+            value=10,
         )
 
       img_option = st.radio(
@@ -467,22 +530,39 @@ elif st.session_state.current_page == "admin_page":
 
       if st.button(translate_text("Add Item", admin_lang)):
         if new_name_input:
-          add_menu_item(new_name_input, new_price_input, final_image_data)
+          add_menu_item(
+              new_name_input,
+              new_price_input,
+              new_cost_input,
+              track_stock_opt,
+              stock_qty_input,
+              final_image_data,
+          )
           st.success(translate_text("Item added successfully!", admin_lang))
           st.rerun()
         else:
           st.warning(translate_text("Please enter item name", admin_lang))
 
       st.markdown("---")
-      st.subheader(translate_text("Current Menu", admin_lang))
+      st.subheader(translate_text("Current Menu & Inventory", admin_lang))
       current_menu = get_menu()
       for item in current_menu:
         c1, c2 = st.columns([3, 1])
         disp_name = translate_text(item["name"], admin_lang)
+        stock_status = (
+            f"📦 Stock: {item.get('stock', 0)}"
+            if item.get("track_stock", False)
+            else "♾️ Unlimited Stock"
+        )
+        cost_status = (
+            f"Cost: {item.get('cost', 0.0)} {translate_text('AED', admin_lang)}"
+        )
+
         with c1:
           st.write(
-              f"• **{disp_name}** - {item['price']}"
-              f" {translate_text('AED', admin_lang)}"
+              f"• **{disp_name}** - Price: {item['price']}"
+              f" {translate_text('AED', admin_lang)} | {cost_status} |"
+              f" **{stock_status}**"
           )
         with c2:
           if st.button(
@@ -491,6 +571,96 @@ elif st.session_state.current_page == "admin_page":
             delete_menu_item(item["id"])
             st.success(translate_text("Deleted successfully", admin_lang))
             st.rerun()
+
+    # تبويب حساب الأرباح والتقارير المالية
+    with tab4:
+      st.header(tab_a4_text)
+      orders = load_data(ORDERS_FILE)
+      menu_items = get_menu()
+
+      # بناء قاموس تكاليف الوجبات
+      cost_dict = {
+          item["name"]: item.get("cost", 0.0) for item in menu_items
+      }
+      for item in menu_items:
+        translated = translate_text(item["name"], admin_lang)
+        cost_dict[translated] = item.get("cost", 0.0)
+
+      total_revenue = 0.0
+      total_cost = 0.0
+
+      daily_profit = {}
+      monthly_profit = {}
+
+      for o in orders:
+        order_total = float(o.get("total", 0.0))
+        total_revenue += order_total
+
+        # حساب التكلفة بناءً على عناصر الطلب
+        order_cost = 0.0
+        for item_name, qty in o.get("items", {}).items():
+          unit_cost = cost_dict.get(item_name, 0.0)
+          order_cost += unit_cost * qty
+
+        total_cost += order_cost
+        order_profit = order_total - order_cost
+
+        # تنظيم التقارير اليومية والشهرية
+        order_date_str = o.get(
+            "date", datetime.datetime.now().strftime("%Y-%m-%d")
+        )
+        order_month_str = order_date_str[:7] if len(order_date_str) >= 7 else "N/A"
+
+        daily_profit[order_date_str] = (
+            daily_profit.get(order_date_str, 0.0) + order_profit
+        )
+        monthly_profit[order_month_str] = (
+            monthly_profit.get(order_month_str, 0.0) + order_profit
+        )
+
+      net_profit = total_revenue - total_cost
+
+      # عرض كروت المؤشرات المباشرة (Metrics)
+      m1, m2, m3 = st.columns(3)
+      with m1:
+        st.metric(
+            translate_text("Total Revenue", admin_lang),
+            f"{total_revenue:.2f} AED",
+        )
+      with m2:
+        st.metric(
+            translate_text("Total Costs", admin_lang), f"{total_cost:.2f} AED"
+        )
+      with m3:
+        st.metric(
+            translate_text("Net Profit", admin_lang), f"{net_profit:.2f} AED"
+        )
+
+      st.markdown("---")
+      col_d, col_m = st.columns(2)
+
+      with col_d:
+        st.subheader(translate_text("Daily Profits", admin_lang))
+        if daily_profit:
+          for d_date, d_prof in reversed(list(daily_profit.items())):
+            st.write(
+                f"📅 **{d_date}**: {d_prof:.2f}"
+                f" {translate_text('AED', admin_lang)}"
+            )
+        else:
+          st.info(translate_text("No daily data available", admin_lang))
+
+      with col_m:
+        st.subheader(translate_text("Monthly Profits", admin_lang))
+        if monthly_profit:
+          for m_date, m_prof in reversed(list(monthly_profit.items())):
+            st.write(
+                f"📆 **{m_date}**: {m_prof:.2f}"
+                f" {translate_text('AED', admin_lang)}"
+            )
+        else:
+          st.info(translate_text("No monthly data available", admin_lang))
+
   else:
     st.sidebar.error(translate_text("Wrong password", admin_lang))
 
@@ -513,7 +683,7 @@ elif st.session_state.current_page in [
     update_url_params()
     st.rerun()
 
-  # 1. صفحة قائمة الطعام
+  # 1. صفحة قائمة الطعام مع فحص حالة المخزون
   if st.session_state.current_page == "food_menu_page":
     st.title(f"📜 {translate_text('Food Menu', lang)}")
     menu_items = get_menu()
@@ -536,18 +706,35 @@ elif st.session_state.current_page in [
         st.subheader(display_name)
         st.write(f"{item['price']} {currency_text}")
 
+        # تنبيه المخزون
+        if item.get("track_stock", False):
+          stock_qty = item.get("stock", 0)
+          if stock_qty > 0:
+            st.caption(
+                f"🟢 {translate_text('Available in Stock', lang)}: {stock_qty}"
+            )
+          else:
+            st.error(f"🔴 {translate_text('Out of Stock', lang)}")
+
       with c2:
+        is_disabled = item.get("track_stock", False) and item.get("stock", 0) <= 0
         qty = st.number_input(
             qty_text,
             min_value=1,
+            max_value=item.get("stock", 999)
+            if item.get("track_stock", False)
+            else 999,
             value=1,
             step=1,
             key=f"qty_{item['id']}",
+            disabled=is_disabled,
             label_visibility="collapsed",
         )
 
       with c3:
-        if st.button(add_btn_text, key=f"btn_{item['id']}"):
+        if st.button(
+            add_btn_text, key=f"btn_{item['id']}", disabled=is_disabled
+        ):
           st.session_state.cart[display_name] = (
               st.session_state.cart.get(display_name, 0) + int(qty)
           )
@@ -613,7 +800,7 @@ elif st.session_state.current_page in [
           update_url_params()
           st.rerun()
 
-  # 3. صفحة حجز الطاولة
+  # 3. صفحة حجز الطاولة + الخصم التلقائي من المخزون
   elif st.session_state.current_page == "reservation_page":
     st.title(f"🍽️ {translate_text('Dine-in / Table Reservation', lang)}")
 
@@ -671,9 +858,14 @@ elif st.session_state.current_page in [
               "payment_method": selected_payment,
               "items": st.session_state.cart,
               "total": total_price,
+              "date": str(datetime.date.today()),
               "status": "Order Received",
           })
           save_data(ORDERS_FILE, orders)
+
+          # خصم المخزون التلقائي
+          deduct_stock_for_order(st.session_state.cart)
+
           st.session_state.cart = {}
           st.session_state.last_order_id = order_id
 
@@ -688,7 +880,7 @@ elif st.session_state.current_page in [
             translate_text("Please fill in your name, phone and table", lang)
         )
 
-  # 4. صفحة الدليفري
+  # 4. صفحة الدليفري + الخصم التلقائي من المخزون
   elif st.session_state.current_page == "delivery_page":
     st.title(f"🛵 {translate_text('Delivery Details', lang)}")
 
@@ -726,9 +918,14 @@ elif st.session_state.current_page in [
             "payment_method": selected_payment,
             "items": st.session_state.cart,
             "total": total_price,
+            "date": str(datetime.date.today()),
             "status": "Order Received",
         })
         save_data(ORDERS_FILE, orders)
+
+        # خصم المخزون التلقائي
+        deduct_stock_for_order(st.session_state.cart)
+
         st.session_state.cart = {}
         st.session_state.last_order_id = order_id
 
