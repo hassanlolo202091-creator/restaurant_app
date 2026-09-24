@@ -10,7 +10,6 @@ from translate import Translator
 
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 
-# إجبار جميع حقول الأرقام والعدادات على عرض الأرقام باللغة الإنجليزية (1, 2, 3)
 st.markdown(
     """
     <style>
@@ -27,10 +26,6 @@ st.markdown(
         border-radius: 8px;
         font-family: 'Courier New', Courier, monospace;
         color: #111;
-    }
-    .low-stock-item {
-        color: #d9534f !important;
-        font-weight: bold;
     }
     </style>
 """,
@@ -325,7 +320,7 @@ elif st.session_state.current_page == "main_menu":
 
 
 # ==========================================
-# 3. لوحة التحكم (Admin Mode) - التنبيه الملون بداخل الصنف مباشرة
+# 3. لوحة التحكم (Admin Mode)
 # ==========================================
 elif st.session_state.current_page == "admin_page":
   lang = st.session_state.app_language
@@ -548,7 +543,6 @@ elif st.session_state.current_page == "admin_page":
         c1, c2 = st.columns([3, 1])
         disp_name = translate_text(item["name"], admin_lang)
 
-        # تحضير سطر الصنف وتلوينه بالكامل عند النفاذ أو النفاذ القريب
         if item.get("track_stock", False):
           curr_stk = item.get("stock", 0)
           if curr_stk == 0:
@@ -571,7 +565,6 @@ elif st.session_state.current_page == "admin_page":
         )
 
         with c1:
-          # عرض السطر كاملاً بالـ HTML مع دعم التلوين للـ Low Stock مباشرة
           line_html = f"• <strong>{disp_name}</strong> - Price: {item['price']} {translate_text('AED', admin_lang)} | {cost_status} | {stock_str}"
           st.markdown(line_html, unsafe_allow_html=True)
 
@@ -584,7 +577,7 @@ elif st.session_state.current_page == "admin_page":
             st.rerun()
 
     # ==========================================
-    # 4. التقرير المالي المتقدم والفلترة بالتاريخ
+    # 4. التقرير المالي المتقدم
     # ==========================================
     with tab4:
       st.header(tab_a4_text)
@@ -727,7 +720,7 @@ elif st.session_state.current_page in [
     update_url_params()
     st.rerun()
 
-  # 1. صفحة قائمة الطعام للزبون
+  # 1. صفحة قائمة الطعام للزبون مع إصلاح خطأ الـ Min/Max
   if st.session_state.current_page == "food_menu_page":
     st.title(f"📜 {translate_text('Food Menu', lang)}")
     menu_items = get_menu()
@@ -758,12 +751,16 @@ elif st.session_state.current_page in [
           st.error(f"🔴 {translate_text('Out of Stock', lang)}")
 
       with c2:
+        # إصلاح خطأ الحد الأقصى للمخزون ومنع الاستثناء
+        max_qty_val = (
+            max(1, item.get("stock", 1))
+            if item.get("track_stock", False)
+            else 999
+        )
         qty = st.number_input(
             qty_text,
             min_value=1,
-            max_value=item.get("stock", 999)
-            if item.get("track_stock", False)
-            else 999,
+            max_value=max_qty_val,
             value=1,
             step=1,
             key=f"qty_{item['id']}",
