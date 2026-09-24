@@ -826,7 +826,7 @@ elif st.session_state.current_page in [
     update_url_params()
     st.rerun()
 
-  # 1. صفحة قائمة الطعام للزبون مع تقييد المخزون الفعلي المتبقي
+  # 1. صفحة قائمة الطعام للزبون
   if st.session_state.current_page == "food_menu_page":
     st.title(f"📜 {translate_text('Food Menu', lang)}")
     menu_items = get_menu()
@@ -838,7 +838,6 @@ elif st.session_state.current_page in [
       display_name = translate_text(item["name"], lang)
       c_img, c1, c2, c3 = st.columns([1.5, 3, 2, 2])
 
-      # حساب الكمية المضافة سابقاً بالسلة
       already_in_cart = st.session_state.cart.get(display_name, 0)
       track_stock = item.get("track_stock", False)
       total_stock = item.get("stock", 0) if track_stock else 999
@@ -867,7 +866,6 @@ elif st.session_state.current_page in [
           )
 
       with c2:
-        # تقييد الحد الأقصى بـ المتبقي في المخزون فعلياً
         max_qty_val = max(1, available_stock) if track_stock else 999
         qty = st.number_input(
             qty_text,
@@ -898,7 +896,7 @@ elif st.session_state.current_page in [
             st.rerun()
       st.markdown("---")
 
-  # 2. صفحة سلة المشتريات
+  # 2. صفحة سلة المشتريات (مع إمكانية التعديل والحذف وتفريغ السلة)
   elif st.session_state.current_page == "cart_page":
     st.title(f"🛒 {translate_text('Shopping Cart', lang)}")
     currency_text = translate_text("AED", lang)
@@ -906,22 +904,77 @@ elif st.session_state.current_page in [
     if not st.session_state.cart:
       st.info(translate_text("Your cart is empty", lang))
     else:
-      total_price = 0
+      total_price = 0.0
       menu_items = get_menu()
-      price_dict = {
-          translate_text(item["name"], lang): item["price"]
-          for item in menu_items
-      }
 
-      for item_name, quantity in st.session_state.cart.items():
-        price = price_dict.get(item_name, 0)
-        item_total = price * quantity
-        total_price += item_total
-        st.write(
-            f"**{item_name}** × {quantity} = {item_total:.1f} {currency_text}"
-        )
+      # بناء قاموس الوجبات
+      item_info_map = {}
+      for item in menu_items:
+        disp = translate_text(item["name"], lang)
+        item_info_map[disp] = item
+        item_info_map[item["name"]] = item
+
+      items_to_remove = []
+
+      # زر تفريغ السلة بالكامل
+      if st.button(
+          f"🗑️ {translate_text('Clear Cart', lang)}", type="secondary"
+      ):
+        st.session_state.cart = {}
+        update_url_params()
+        st.rerun()
 
       st.markdown("---")
+
+      for item_name, quantity in list(st.session_state.cart.items()):
+        item_obj = item_info_map.get(
+            item_name, {"price": 0.0, "track_stock": False, "stock": 999}
+        )
+        price = item_obj.get("price", 0.0)
+        track_stock = item_obj.get("track_stock", False)
+        total_stock = item_obj.get("stock", 999) if track_stock else 999
+
+        item_total = price * quantity
+        total_price += item_total
+
+        c_info, c_qty, c_del = st.columns([3, 2, 1])
+
+        with c_info:
+          st.markdown(f"### **{item_name}**")
+          st.write(
+              f"{translate_text('Price', lang)}: {price:.1f} {currency_text} |"
+              f" {translate_text('Total', lang)}: **{item_total:.1f}"
+              f" {currency_text}**"
+          )
+
+        with c_qty:
+          max_val = total_stock if track_stock else 999
+          new_qty = st.number_input(
+              f"{translate_text('Qty', lang)} ({item_name})",
+              min_value=1,
+              max_value=max_val,
+              value=int(quantity),
+              step=1,
+              key=f"cart_qty_{item_name}",
+          )
+          if new_qty != quantity:
+            st.session_state.cart[item_name] = int(new_qty)
+            update_url_params()
+            st.rerun()
+
+        with c_del:
+          st.write("<br>", unsafe_allow_html=True)
+          if st.button("🗑️", key=f"del_cart_{item_name}"):
+            items_to_remove.append(item_name)
+
+        st.markdown("---")
+
+      if items_to_remove:
+        for itm in items_to_remove:
+          del st.session_state.cart[itm]
+        update_url_params()
+        st.rerun()
+
       st.subheader(
           f"{translate_text('Total', lang)}: {total_price:.1f} {currency_text}"
       )
