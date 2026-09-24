@@ -28,6 +28,10 @@ st.markdown(
         font-family: 'Courier New', Courier, monospace;
         color: #111;
     }
+    .low-stock-item {
+        color: #d9534f !important;
+        font-weight: bold;
+    }
     </style>
 """,
     unsafe_allow_html=True,
@@ -321,7 +325,7 @@ elif st.session_state.current_page == "main_menu":
 
 
 # ==========================================
-# 3. لوحة التحكم (Admin Mode) - إدارة المخزون وتحذيرات النفاذ
+# 3. لوحة التحكم (Admin Mode) - التنبيه الملون بداخل الصنف مباشرة
 # ==========================================
 elif st.session_state.current_page == "admin_page":
   lang = st.session_state.app_language
@@ -544,36 +548,32 @@ elif st.session_state.current_page == "admin_page":
         c1, c2 = st.columns([3, 1])
         disp_name = translate_text(item["name"], admin_lang)
 
-        # تحديد نص وحالة المخزون للأدمن فقط
-        stock_info = ""
-        is_low_stock = False
-
+        # تحضير سطر الصنف وتلوينه بالكامل عند النفاذ أو النفاذ القريب
         if item.get("track_stock", False):
           curr_stk = item.get("stock", 0)
-          stock_info = f"📦 Stock: {curr_stk}"
-          if 0 < curr_stk <= 5:
-            is_low_stock = True
-          elif curr_stk == 0:
-            stock_info += " 🔴 (Out of Stock)"
+          if curr_stk == 0:
+            stock_str = (
+                "<span style='color: #d9534f; font-weight: bold;'>🔴 Stock: 0"
+                " (Out of Stock)</span>"
+            )
+          elif curr_stk <= 5:
+            stock_str = (
+                f"<span style='color: #d9534f; font-weight: bold;'>⚠️ Stock:"
+                f" {curr_stk} (Low Stock Warning!)</span>"
+            )
+          else:
+            stock_str = f"📦 Stock: {curr_stk}"
         else:
-          stock_info = "♾️ Unlimited Stock"
+          stock_str = "♾️ Unlimited Stock"
 
         cost_status = (
             f"Cost: {item.get('cost', 0.0)} {translate_text('AED', admin_lang)}"
         )
 
         with c1:
-          st.write(
-              f"• **{disp_name}** - Price: {item['price']}"
-              f" {translate_text('AED', admin_lang)} | {cost_status} |"
-              f" **{stock_info}**"
-          )
-          # إظهار تحذير نفاذ المخزون للأدمن إذا أصبح 5 أو أقل
-          if is_low_stock:
-            st.warning(
-                f"⚠️ Low Stock Warning: Only {item.get('stock')} left for"
-                f" '{disp_name}'!"
-            )
+          # عرض السطر كاملاً بالـ HTML مع دعم التلوين للـ Low Stock مباشرة
+          line_html = f"• <strong>{disp_name}</strong> - Price: {item['price']} {translate_text('AED', admin_lang)} | {cost_status} | {stock_str}"
+          st.markdown(line_html, unsafe_allow_html=True)
 
         with c2:
           if st.button(
@@ -727,7 +727,7 @@ elif st.session_state.current_page in [
     update_url_params()
     st.rerun()
 
-  # 1. صفحة قائمة الطعام للزبون (بدون إظهار رقم الاستوك المتبقي)
+  # 1. صفحة قائمة الطعام للزبون
   if st.session_state.current_page == "food_menu_page":
     st.title(f"📜 {translate_text('Food Menu', lang)}")
     menu_items = get_menu()
@@ -739,7 +739,6 @@ elif st.session_state.current_page in [
       display_name = translate_text(item["name"], lang)
       c_img, c1, c2, c3 = st.columns([1.5, 3, 2, 2])
 
-      # فحص حالة النفاذ فقط دون إظهار أرقام الاستوك المتبقي للعميل
       is_out_of_stock = item.get("track_stock", False) and (
           item.get("stock", 0) <= 0
       )
@@ -755,7 +754,6 @@ elif st.session_state.current_page in [
         st.subheader(display_name)
         st.write(f"{item['price']} {currency_text}")
 
-        # إظهار حالة غير متوفر فقط عند وصول المخزون لصفر
         if is_out_of_stock:
           st.error(f"🔴 {translate_text('Out of Stock', lang)}")
 
