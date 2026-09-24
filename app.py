@@ -340,7 +340,7 @@ elif st.session_state.current_page == "main_menu":
 
 
 # ==========================================
-# 3. لوحة التحكم (Admin Mode) - مع زر التعديل المباشر
+# 3. لوحة التحكم (Admin Mode)
 # ==========================================
 elif st.session_state.current_page == "admin_page":
   lang = st.session_state.app_language
@@ -607,7 +607,6 @@ elif st.session_state.current_page == "admin_page":
             st.success(translate_text("Deleted successfully", admin_lang))
             st.rerun()
 
-        # نافذة التعديل المباشر المنسدلة للصنف المختار
         if st.session_state.editing_item_id == item["id"]:
           with st.container():
             st.markdown(
@@ -670,9 +669,7 @@ elif st.session_state.current_page == "admin_page":
                 )
                 st.session_state.editing_item_id = None
                 st.success(
-                    translate_text(
-                        "Item updated successfully!", admin_lang
-                    )
+                    translate_text("Item updated successfully!", admin_lang)
                 )
                 st.rerun()
 
@@ -829,7 +826,7 @@ elif st.session_state.current_page in [
     update_url_params()
     st.rerun()
 
-  # 1. صفحة قائمة الطعام للزبون
+  # 1. صفحة قائمة الطعام للزبون مع تقييد المخزون الفعلي المتبقي
   if st.session_state.current_page == "food_menu_page":
     st.title(f"📜 {translate_text('Food Menu', lang)}")
     menu_items = get_menu()
@@ -841,9 +838,15 @@ elif st.session_state.current_page in [
       display_name = translate_text(item["name"], lang)
       c_img, c1, c2, c3 = st.columns([1.5, 3, 2, 2])
 
-      is_out_of_stock = item.get("track_stock", False) and (
-          item.get("stock", 0) <= 0
+      # حساب الكمية المضافة سابقاً بالسلة
+      already_in_cart = st.session_state.cart.get(display_name, 0)
+      track_stock = item.get("track_stock", False)
+      total_stock = item.get("stock", 0) if track_stock else 999
+      available_stock = (
+          max(0, total_stock - already_in_cart) if track_stock else 999
       )
+
+      is_out_of_stock = track_stock and available_stock <= 0
 
       with c_img:
         img_url = item.get(
@@ -856,15 +859,16 @@ elif st.session_state.current_page in [
         st.subheader(display_name)
         st.write(f"{item['price']} {currency_text}")
 
-        if is_out_of_stock:
+        if track_stock and total_stock <= 0:
           st.error(f"🔴 {translate_text('Out of Stock', lang)}")
+        elif track_stock and available_stock <= 0:
+          st.warning(
+              f"⚠️ {translate_text('Maximum stock reached in cart', lang)}"
+          )
 
       with c2:
-        max_qty_val = (
-            max(1, item.get("stock", 1))
-            if item.get("track_stock", False)
-            else 999
-        )
+        # تقييد الحد الأقصى بـ المتبقي في المخزون فعلياً
+        max_qty_val = max(1, available_stock) if track_stock else 999
         qty = st.number_input(
             qty_text,
             min_value=1,
@@ -880,15 +884,18 @@ elif st.session_state.current_page in [
         if st.button(
             add_btn_text, key=f"btn_{item['id']}", disabled=is_out_of_stock
         ):
-          st.session_state.cart[display_name] = (
-              st.session_state.cart.get(display_name, 0) + int(qty)
-          )
-          update_url_params()
-          st.success(
-              f"{translate_text('Added', lang)} {display_name}"
-              f" {translate_text('successfully', lang)}"
-          )
-          st.rerun()
+          if track_stock and (already_in_cart + int(qty) > total_stock):
+            st.error(
+                f"❌ {translate_text('Cannot add more. Available stock is only:', lang)} {total_stock}"
+            )
+          else:
+            st.session_state.cart[display_name] = already_in_cart + int(qty)
+            update_url_params()
+            st.success(
+                f"{translate_text('Added', lang)} {display_name}"
+                f" {translate_text('successfully', lang)}"
+            )
+            st.rerun()
       st.markdown("---")
 
   # 2. صفحة سلة المشتريات
