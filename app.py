@@ -321,7 +321,7 @@ elif st.session_state.current_page == "main_menu":
 
 
 # ==========================================
-# 3. لوحة التحكم (Admin Mode) - مع التقرير المالي بالتاريخ
+# 3. لوحة التحكم (Admin Mode) - إدارة المخزون وتحذيرات النفاذ
 # ==========================================
 elif st.session_state.current_page == "admin_page":
   lang = st.session_state.app_language
@@ -539,14 +539,25 @@ elif st.session_state.current_page == "admin_page":
       st.markdown("---")
       st.subheader(translate_text("Current Menu & Inventory", admin_lang))
       current_menu = get_menu()
+
       for item in current_menu:
         c1, c2 = st.columns([3, 1])
         disp_name = translate_text(item["name"], admin_lang)
-        stock_status = (
-            f"📦 Stock: {item.get('stock', 0)}"
-            if item.get("track_stock", False)
-            else "♾️ Unlimited Stock"
-        )
+
+        # تحديد نص وحالة المخزون للأدمن فقط
+        stock_info = ""
+        is_low_stock = False
+
+        if item.get("track_stock", False):
+          curr_stk = item.get("stock", 0)
+          stock_info = f"📦 Stock: {curr_stk}"
+          if 0 < curr_stk <= 5:
+            is_low_stock = True
+          elif curr_stk == 0:
+            stock_info += " 🔴 (Out of Stock)"
+        else:
+          stock_info = "♾️ Unlimited Stock"
+
         cost_status = (
             f"Cost: {item.get('cost', 0.0)} {translate_text('AED', admin_lang)}"
         )
@@ -555,8 +566,15 @@ elif st.session_state.current_page == "admin_page":
           st.write(
               f"• **{disp_name}** - Price: {item['price']}"
               f" {translate_text('AED', admin_lang)} | {cost_status} |"
-              f" **{stock_status}**"
+              f" **{stock_info}**"
           )
+          # إظهار تحذير نفاذ المخزون للأدمن إذا أصبح 5 أو أقل
+          if is_low_stock:
+            st.warning(
+                f"⚠️ Low Stock Warning: Only {item.get('stock')} left for"
+                f" '{disp_name}'!"
+            )
+
         with c2:
           if st.button(
               translate_text("Delete", admin_lang), key=f"del_{item['id']}"
@@ -570,8 +588,6 @@ elif st.session_state.current_page == "admin_page":
     # ==========================================
     with tab4:
       st.header(tab_a4_text)
-
-      # أداة اختيار فترة النطاق الزمني المتغير (Date Range Selector)
       st.subheader(translate_text("Select Date Range", admin_lang))
 
       col_d1, col_d2 = st.columns(2)
@@ -592,7 +608,6 @@ elif st.session_state.current_page == "admin_page":
       orders = load_data(ORDERS_FILE)
       menu_items = get_menu()
 
-      # بناء خريطة أسعار البيع والتكلفة للوجبات
       price_cost_map = {}
       for item in menu_items:
         orig_name = item["name"]
@@ -650,7 +665,6 @@ elif st.session_state.current_page == "admin_page":
 
       net_profit = total_revenue - total_cost
 
-      # عرض الكروت الملخصة للفترة المختارة
       m1, m2, m3 = st.columns(3)
       with m1:
         st.metric(
@@ -669,8 +683,6 @@ elif st.session_state.current_page == "admin_page":
         )
 
       st.markdown("---")
-
-      # عرض جدول أرباح وتكاليف كل صنف تفصيلياً للفترة المحددة
       st.subheader(translate_text("Item-wise Profitability", admin_lang))
 
       if item_stats:
@@ -715,7 +727,7 @@ elif st.session_state.current_page in [
     update_url_params()
     st.rerun()
 
-  # 1. صفحة قائمة الطعام مع فحص حالة المخزون
+  # 1. صفحة قائمة الطعام للزبون (بدون إظهار رقم الاستوك المتبقي)
   if st.session_state.current_page == "food_menu_page":
     st.title(f"📜 {translate_text('Food Menu', lang)}")
     menu_items = get_menu()
@@ -726,6 +738,11 @@ elif st.session_state.current_page in [
     for item in menu_items:
       display_name = translate_text(item["name"], lang)
       c_img, c1, c2, c3 = st.columns([1.5, 3, 2, 2])
+
+      # فحص حالة النفاذ فقط دون إظهار أرقام الاستوك المتبقي للعميل
+      is_out_of_stock = item.get("track_stock", False) and (
+          item.get("stock", 0) <= 0
+      )
 
       with c_img:
         img_url = item.get(
@@ -738,17 +755,11 @@ elif st.session_state.current_page in [
         st.subheader(display_name)
         st.write(f"{item['price']} {currency_text}")
 
-        if item.get("track_stock", False):
-          stock_qty = item.get("stock", 0)
-          if stock_qty > 0:
-            st.caption(
-                f"🟢 {translate_text('Available in Stock', lang)}: {stock_qty}"
-            )
-          else:
-            st.error(f"🔴 {translate_text('Out of Stock', lang)}")
+        # إظهار حالة غير متوفر فقط عند وصول المخزون لصفر
+        if is_out_of_stock:
+          st.error(f"🔴 {translate_text('Out of Stock', lang)}")
 
       with c2:
-        is_disabled = item.get("track_stock", False) and item.get("stock", 0) <= 0
         qty = st.number_input(
             qty_text,
             min_value=1,
@@ -758,13 +769,13 @@ elif st.session_state.current_page in [
             value=1,
             step=1,
             key=f"qty_{item['id']}",
-            disabled=is_disabled,
+            disabled=is_out_of_stock,
             label_visibility="collapsed",
         )
 
       with c3:
         if st.button(
-            add_btn_text, key=f"btn_{item['id']}", disabled=is_disabled
+            add_btn_text, key=f"btn_{item['id']}", disabled=is_out_of_stock
         ):
           st.session_state.cart[display_name] = (
               st.session_state.cart.get(display_name, 0) + int(qty)
@@ -831,7 +842,7 @@ elif st.session_state.current_page in [
           update_url_params()
           st.rerun()
 
-  # 3. صفحة حجز الطاولة + تسجيل تاريخ اليوم
+  # 3. صفحة حجز الطاولة
   elif st.session_state.current_page == "reservation_page":
     st.title(f"🍽️ {translate_text('Dine-in / Table Reservation', lang)}")
 
@@ -910,7 +921,7 @@ elif st.session_state.current_page in [
             translate_text("Please fill in your name, phone and table", lang)
         )
 
-  # 4. صفحة الدليفري + تسجيل تاريخ اليوم
+  # 4. صفحة الدليفري
   elif st.session_state.current_page == "delivery_page":
     st.title(f"🛵 {translate_text('Delivery Details', lang)}")
 
