@@ -4,6 +4,7 @@ import json
 import os
 import random
 import time
+import pandas as pd
 import streamlit as st
 from translate import Translator
 
@@ -169,13 +170,7 @@ def delete_menu_item(item_id):
 
 def deduct_stock_for_order(cart_items):
   menu = get_menu()
-  menu_dict = {
-      translate_text(item["name"], st.session_state.app_language): item
-      for item in menu
-  }
-
   for disp_name, qty in cart_items.items():
-    # البحث بالاسم المترجم أو بالاسم الإنجليزي الأصلي
     target_item = None
     for item in menu:
       if (
@@ -192,7 +187,6 @@ def deduct_stock_for_order(cart_items):
   save_data(MENU_FILE, menu)
 
 
-# --- استرجاع البيانات المجهزة من الرابط عند إعادة التحميل (Refresh) ---
 query_params = st.query_params
 
 if "app_language" not in st.session_state:
@@ -327,7 +321,7 @@ elif st.session_state.current_page == "main_menu":
 
 
 # ==========================================
-# 3. لوحة التحكم (Admin Mode) - تشمل الأرباح والمخزون
+# 3. لوحة التحكم (Admin Mode) - مع التقرير المالي بالتاريخ
 # ==========================================
 elif st.session_state.current_page == "admin_page":
   lang = st.session_state.app_language
@@ -487,7 +481,6 @@ elif st.session_state.current_page == "admin_page":
             value=8.0,
         )
 
-      # خيارات المخزون الاختياري
       st.write(f"**{translate_text('Inventory Settings', admin_lang)}:**")
       track_stock_opt = st.checkbox(
           translate_text(
@@ -572,101 +565,140 @@ elif st.session_state.current_page == "admin_page":
             st.success(translate_text("Deleted successfully", admin_lang))
             st.rerun()
 
-    # تبويب حساب الأرباح والتقارير المالية
+    # ==========================================
+    # 4. التقرير المالي المتقدم والفلترة بالتاريخ
+    # ==========================================
     with tab4:
       st.header(tab_a4_text)
+
+      # أداة اختيار فترة النطاق الزمني المتغير (Date Range Selector)
+      st.subheader(translate_text("Select Date Range", admin_lang))
+
+      col_d1, col_d2 = st.columns(2)
+      today = datetime.date.today()
+      start_of_month = today.replace(day=1)
+
+      with col_d1:
+        start_date = st.date_input(
+            translate_text("From Date", admin_lang), value=start_of_month
+        )
+      with col_d2:
+        end_date = st.date_input(
+            translate_text("To Date", admin_lang), value=today
+        )
+
+      st.markdown("---")
+
       orders = load_data(ORDERS_FILE)
       menu_items = get_menu()
 
-      # بناء قاموس تكاليف الوجبات
-      cost_dict = {
-          item["name"]: item.get("cost", 0.0) for item in menu_items
-      }
+      # بناء خريطة أسعار البيع والتكلفة للوجبات
+      price_cost_map = {}
       for item in menu_items:
-        translated = translate_text(item["name"], admin_lang)
-        cost_dict[translated] = item.get("cost", 0.0)
+        orig_name = item["name"]
+        trans_name = translate_text(item["name"], admin_lang)
+        p = float(item.get("price", 0.0))
+        c = float(item.get("cost", 0.0))
+
+        price_cost_map[orig_name] = {"price": p, "cost": c}
+        price_cost_map[trans_name] = {"price": p, "cost": c}
+
+      filtered_orders = []
+      for o in orders:
+        order_date_str = o.get("date", str(today))
+        try:
+          o_date = datetime.datetime.strptime(
+              order_date_str, "%Y-%m-%d"
+          ).date()
+        except Exception:
+          o_date = today
+
+        if start_date <= o_date <= end_date:
+          filtered_orders.append(o)
 
       total_revenue = 0.0
       total_cost = 0.0
+      item_stats = {}
 
-      daily_profit = {}
-      monthly_profit = {}
-
-      for o in orders:
-        order_total = float(o.get("total", 0.0))
-        total_revenue += order_total
-
-        # حساب التكلفة بناءً على عناصر الطلب
-        order_cost = 0.0
+      for o in filtered_orders:
         for item_name, qty in o.get("items", {}).items():
-          unit_cost = cost_dict.get(item_name, 0.0)
-          order_cost += unit_cost * qty
+          unit_info = price_cost_map.get(
+              item_name, {"price": 0.0, "cost": 0.0}
+          )
+          u_price = unit_info["price"]
+          u_cost = unit_info["cost"]
 
-        total_cost += order_cost
-        order_profit = order_total - order_cost
+          sales = u_price * qty
+          costs = u_cost * qty
+          profit = sales - costs
 
-        # تنظيم التقارير اليومية والشهرية
-        order_date_str = o.get(
-            "date", datetime.datetime.now().strftime("%Y-%m-%d")
-        )
-        order_month_str = order_date_str[:7] if len(order_date_str) >= 7 else "N/A"
+          total_revenue += sales
+          total_cost += costs
 
-        daily_profit[order_date_str] = (
-            daily_profit.get(order_date_str, 0.0) + order_profit
-        )
-        monthly_profit[order_month_str] = (
-            monthly_profit.get(order_month_str, 0.0) + order_profit
-        )
+          if item_name not in item_stats:
+            item_stats[item_name] = {
+                "qty": 0,
+                "sales": 0.0,
+                "costs": 0.0,
+                "profit": 0.0,
+            }
+
+          item_stats[item_name]["qty"] += qty
+          item_stats[item_name]["sales"] += sales
+          item_stats[item_name]["costs"] += costs
+          item_stats[item_name]["profit"] += profit
 
       net_profit = total_revenue - total_cost
 
-      # عرض كروت المؤشرات المباشرة (Metrics)
+      # عرض الكروت الملخصة للفترة المختارة
       m1, m2, m3 = st.columns(3)
       with m1:
         st.metric(
-            translate_text("Total Revenue", admin_lang),
+            translate_text("Total Revenue (Period)", admin_lang),
             f"{total_revenue:.2f} AED",
         )
       with m2:
         st.metric(
-            translate_text("Total Costs", admin_lang), f"{total_cost:.2f} AED"
+            translate_text("Total Costs (Period)", admin_lang),
+            f"{total_cost:.2f} AED",
         )
       with m3:
         st.metric(
-            translate_text("Net Profit", admin_lang), f"{net_profit:.2f} AED"
+            translate_text("Net Profit (Period)", admin_lang),
+            f"{net_profit:.2f} AED",
         )
 
       st.markdown("---")
-      col_d, col_m = st.columns(2)
 
-      with col_d:
-        st.subheader(translate_text("Daily Profits", admin_lang))
-        if daily_profit:
-          for d_date, d_prof in reversed(list(daily_profit.items())):
-            st.write(
-                f"📅 **{d_date}**: {d_prof:.2f}"
-                f" {translate_text('AED', admin_lang)}"
-            )
-        else:
-          st.info(translate_text("No daily data available", admin_lang))
+      # عرض جدول أرباح وتكاليف كل صنف تفصيلياً للفترة المحددة
+      st.subheader(translate_text("Item-wise Profitability", admin_lang))
 
-      with col_m:
-        st.subheader(translate_text("Monthly Profits", admin_lang))
-        if monthly_profit:
-          for m_date, m_prof in reversed(list(monthly_profit.items())):
-            st.write(
-                f"📆 **{m_date}**: {m_prof:.2f}"
-                f" {translate_text('AED', admin_lang)}"
+      if item_stats:
+        table_data = []
+        for name, data in item_stats.items():
+          table_data.append({
+              translate_text("Item Name", admin_lang): name,
+              translate_text("Qty Sold", admin_lang): data["qty"],
+              translate_text("Total Sales (AED)", admin_lang): f"{data['sales']:.2f}",
+              translate_text("Total Cost (AED)", admin_lang): f"{data['costs']:.2f}",
+              translate_text("Net Profit (AED)", admin_lang): f"{data['profit']:.2f}",
+          })
+
+        df_items = pd.DataFrame(table_data)
+        st.dataframe(df_items, use_container_width=True)
+      else:
+        st.info(
+            translate_text(
+                "No sales registered in the selected date range.", admin_lang
             )
-        else:
-          st.info(translate_text("No monthly data available", admin_lang))
+        )
 
   else:
     st.sidebar.error(translate_text("Wrong password", admin_lang))
 
 
 # ==========================================
-# 4. صفحات الأقسام والخدمات
+# 5. صفحات الأقسام والخدمات
 # ==========================================
 elif st.session_state.current_page in [
     "food_menu_page",
@@ -706,7 +738,6 @@ elif st.session_state.current_page in [
         st.subheader(display_name)
         st.write(f"{item['price']} {currency_text}")
 
-        # تنبيه المخزون
         if item.get("track_stock", False):
           stock_qty = item.get("stock", 0)
           if stock_qty > 0:
@@ -800,7 +831,7 @@ elif st.session_state.current_page in [
           update_url_params()
           st.rerun()
 
-  # 3. صفحة حجز الطاولة + الخصم التلقائي من المخزون
+  # 3. صفحة حجز الطاولة + تسجيل تاريخ اليوم
   elif st.session_state.current_page == "reservation_page":
     st.title(f"🍽️ {translate_text('Dine-in / Table Reservation', lang)}")
 
@@ -863,7 +894,6 @@ elif st.session_state.current_page in [
           })
           save_data(ORDERS_FILE, orders)
 
-          # خصم المخزون التلقائي
           deduct_stock_for_order(st.session_state.cart)
 
           st.session_state.cart = {}
@@ -880,7 +910,7 @@ elif st.session_state.current_page in [
             translate_text("Please fill in your name, phone and table", lang)
         )
 
-  # 4. صفحة الدليفري + الخصم التلقائي من المخزون
+  # 4. صفحة الدليفري + تسجيل تاريخ اليوم
   elif st.session_state.current_page == "delivery_page":
     st.title(f"🛵 {translate_text('Delivery Details', lang)}")
 
@@ -923,7 +953,6 @@ elif st.session_state.current_page in [
         })
         save_data(ORDERS_FILE, orders)
 
-        # خصم المخزون التلقائي
         deduct_stock_for_order(st.session_state.cart)
 
         st.session_state.cart = {}
