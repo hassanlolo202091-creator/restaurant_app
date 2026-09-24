@@ -826,7 +826,7 @@ elif st.session_state.current_page in [
     update_url_params()
     st.rerun()
 
-  # 1. صفحة قائمة الطعام للزبون
+  # 1. صفحة قائمة الطعام للزبون مع فحص دقيق يتجاوز المخزون
   if st.session_state.current_page == "food_menu_page":
     st.title(f"📜 {translate_text('Food Menu', lang)}")
     menu_items = get_menu()
@@ -860,17 +860,12 @@ elif st.session_state.current_page in [
 
         if track_stock and total_stock <= 0:
           st.error(f"🔴 {translate_text('Out of Stock', lang)}")
-        elif track_stock and available_stock <= 0:
-          st.warning(
-              f"⚠️ {translate_text('Maximum stock reached in cart', lang)}"
-          )
 
       with c2:
-        max_qty_val = max(1, available_stock) if track_stock else 999
+        # إدخال حر بدون max_value صلب لمنع قفز القيمة تلقائياً
         qty = st.number_input(
             qty_text,
             min_value=1,
-            max_value=max_qty_val,
             value=1,
             step=1,
             key=f"qty_{item['id']}",
@@ -878,25 +873,32 @@ elif st.session_state.current_page in [
             label_visibility="collapsed",
         )
 
+        # فحص مباشر: هل القيمة المطلوبة + الموجودة بالسلة تتجاوز المخزون؟
+        exceeds_stock = track_stock and ((already_in_cart + int(qty)) > total_stock)
+
+        if exceeds_stock:
+          st.error(
+              f"⚠️ {translate_text('Exceeds stock! Max available:', lang)}"
+              f" {available_stock}"
+          )
+
       with c3:
+        # تعطيل الزر فوراً عند إدخال قيمة تتجاوز المخزون
+        btn_disabled = is_out_of_stock or exceeds_stock
+
         if st.button(
-            add_btn_text, key=f"btn_{item['id']}", disabled=is_out_of_stock
+            add_btn_text, key=f"btn_{item['id']}", disabled=btn_disabled
         ):
-          if track_stock and (already_in_cart + int(qty) > total_stock):
-            st.error(
-                f"❌ {translate_text('Cannot add more. Available stock is only:', lang)} {total_stock}"
-            )
-          else:
-            st.session_state.cart[display_name] = already_in_cart + int(qty)
-            update_url_params()
-            st.success(
-                f"{translate_text('Added', lang)} {display_name}"
-                f" {translate_text('successfully', lang)}"
-            )
-            st.rerun()
+          st.session_state.cart[display_name] = already_in_cart + int(qty)
+          update_url_params()
+          st.success(
+              f"{translate_text('Added', lang)} {display_name}"
+              f" {translate_text('successfully', lang)}"
+          )
+          st.rerun()
       st.markdown("---")
 
-  # 2. صفحة سلة المشتريات (مع إمكانية التعديل والحذف وتفريغ السلة)
+  # 2. صفحة سلة المشتريات
   elif st.session_state.current_page == "cart_page":
     st.title(f"🛒 {translate_text('Shopping Cart', lang)}")
     currency_text = translate_text("AED", lang)
@@ -907,7 +909,6 @@ elif st.session_state.current_page in [
       total_price = 0.0
       menu_items = get_menu()
 
-      # بناء قاموس الوجبات
       item_info_map = {}
       for item in menu_items:
         disp = translate_text(item["name"], lang)
@@ -916,7 +917,6 @@ elif st.session_state.current_page in [
 
       items_to_remove = []
 
-      # زر تفريغ السلة بالكامل
       if st.button(
           f"🗑️ {translate_text('Clear Cart', lang)}", type="secondary"
       ):
@@ -948,16 +948,21 @@ elif st.session_state.current_page in [
           )
 
         with c_qty:
-          max_val = total_stock if track_stock else 999
           new_qty = st.number_input(
               f"{translate_text('Qty', lang)} ({item_name})",
               min_value=1,
-              max_value=max_val,
               value=int(quantity),
               step=1,
               key=f"cart_qty_{item_name}",
           )
-          if new_qty != quantity:
+
+          exceeds_cart_stock = track_stock and (int(new_qty) > total_stock)
+          if exceeds_cart_stock:
+            st.error(
+                f"⚠️ {translate_text('Max stock available:', lang)}"
+                f" {total_stock}"
+            )
+          elif new_qty != quantity:
             st.session_state.cart[item_name] = int(new_qty)
             update_url_params()
             st.rerun()
