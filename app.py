@@ -10,82 +10,6 @@ from translate import Translator
 
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 
-# ==========================================
-# إضافة الخلفية الجذابة والتنسيقات الزجاجية الاحترافية (CSS)
-# ==========================================
-st.markdown(
-    """
-    <style>
-    /* 1. خلفية الصفحة الرئيسية مع طبقة تعتيم خفيفة لإبراز النصوص */
-    .stApp {
-        background: linear-gradient(rgba(15, 15, 15, 0.75), rgba(15, 15, 15, 0.75)), 
-                    url("https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=1920&auto=format&fit=crop");
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-    }
-
-    /* 2. تنسيق الأرقام والمدخلات لتبدأ دائماً من اليسار وتدعم اللغات */
-    input, .stNumberInput input, div[data-baseweb="input"] input {
-        direction: ltr !important;
-        font-family: Arial, Helvetica, sans-serif !important;
-        font-variant-numeric: lining-nums tabular-nums !important;
-        -webkit-locale: "en-US" !important;
-    }
-
-    /* 3. تنسيق الشريط الجانبي (Sidebar) بلمسة زجاجية شبه شفافة */
-    [data-testid="stSidebar"] {
-        background-color: rgba(20, 20, 20, 0.85) !important;
-        backdrop-filter: blur(12px);
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    /* 4. إبراز العناوين والنصوص باللون الأبيض النقي */
-    h1, h2, h3, h4, h5, h6, p, label, span, .stMarkdown {
-        color: #FFFFFF !important;
-    }
-
-    /* 5. تصميم الحاويات والبطاقات بلمسة زجاجية شفافة */
-    div[data-testid="stVerticalBlock"] > div[style*="background-color"] {
-        background-color: rgba(30, 30, 30, 0.6) !important;
-        border-radius: 12px;
-        padding: 15px;
-        backdrop-filter: blur(8px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    /* 6. تحسين أشكال الأزرار وتأثيرات الضغط والتمرير */
-    .stButton>button {
-        border-radius: 10px !important;
-        font-weight: bold !important;
-        transition: all 0.3s ease-in-out !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
-    }
-
-    .stButton>button:hover {
-        transform: translateY(-2px) scale(1.02) !important;
-        box-shadow: 0 6px 20px rgba(255, 75, 75, 0.4) !important;
-    }
-
-    /* 7. إعداد الفاتورة المطبوعة للمطبخ */
-    .print-receipt {
-        background-color: #ffffff;
-        border: 2px dashed #333;
-        padding: 20px;
-        border-radius: 10px;
-        font-family: 'Courier New', Courier, monospace;
-        color: #000000 !important;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-    }
-    .print-receipt h3, .print-receipt h4, .print-receipt p, .print-receipt li {
-        color: #000000 !important;
-    }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
-
 ORDERS_FILE = "orders.json"
 RESERVATIONS_FILE = "reservations.json"
 MENU_FILE = "menu.json"
@@ -141,6 +65,126 @@ PAYMENT_METHODS = [
     "Card on Delivery",
     "Online Payment",
 ]
+
+query_params = st.query_params
+
+if "app_language" not in st.session_state:
+    st.session_state.app_language = query_params.get("lang", None)
+
+if "current_page" not in st.session_state:
+    st.session_state.current_page = query_params.get("page", "main_menu")
+
+if "admin_language" not in st.session_state:
+    st.session_state.admin_language = None
+
+if "cart" not in st.session_state:
+    cart_param = query_params.get("cart", "{}")
+    try:
+        st.session_state.cart = json.loads(cart_param)
+    except Exception:
+        st.session_state.cart = {}
+
+if "last_order_id" not in st.session_state:
+    st.session_state.last_order_id = query_params.get("order_id", None)
+
+if "editing_item_id" not in st.session_state:
+    st.session_state.editing_item_id = None
+
+# ==========================================
+# تخصيص خلفيات مختلفة لكل صفحة وحل مشكلة الأزرار
+# ==========================================
+page_backgrounds = {
+    "select_lang": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=1920",
+    "main_menu": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=1920",
+    "food_menu_page": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1920",
+    "cart_page": "https://images.unsplash.com/photo-1556742049-0a67d5193911?q=80&w=1920",
+    "reservation_page": "https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?q=80&w=1920",
+    "delivery_page": "https://images.unsplash.com/photo-1526367790999-0150786686a2?q=80&w=1920",
+    "track_orders_page": "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=1920",
+    "contact_page": "https://images.unsplash.com/photo-1423666639041-f56000c27a9a?q=80&w=1920",
+    "admin_page": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=1920",
+}
+
+curr_bg_key = "select_lang" if st.session_state.app_language is None else st.session_state.current_page
+bg_url = page_backgrounds.get(curr_bg_key, page_backgrounds["main_menu"])
+
+st.markdown(
+    f"""
+    <style>
+    /* 1. خلفية متغيرة ديناميكياً حسب الصفحة */
+    .stApp {{
+        background: linear-gradient(rgba(10, 10, 10, 0.75), rgba(10, 10, 10, 0.75)), 
+                    url("{bg_url}");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }}
+
+    /* 2. ضبط الأرقام والمدخلات */
+    input, .stNumberInput input, div[data-baseweb="input"] input {{
+        direction: ltr !important;
+        font-family: Arial, Helvetica, sans-serif !important;
+        font-variant-numeric: lining-nums tabular-nums !important;
+        color: #000000 !important;
+        -webkit-locale: "en-US" !important;
+    }}
+
+    /* 3. تنسيق الشريط الجانبي */
+    [data-testid="stSidebar"] {{
+        background-color: rgba(20, 20, 20, 0.88) !important;
+        backdrop-filter: blur(12px);
+    }}
+
+    /* 4. إبراز العناوين والنصوص */
+    h1, h2, h3, h4, h5, h6, p, label, span, .stMarkdown {{
+        color: #FFFFFF !important;
+    }}
+
+    /* 5. إصلاح ألوان أزرار الثانوي والرئيسي لظهور النصوص بوضوح ممتاز */
+    button[kind="primary"] {{
+        background-color: #FF4B4B !important;
+        color: #FFFFFF !important;
+        font-weight: bold !important;
+        border-radius: 10px !important;
+        border: none !important;
+    }}
+
+    button[kind="secondary"] {{
+        background-color: #FFFFFF !important;
+        color: #111111 !important;
+        font-weight: bold !important;
+        border-radius: 10px !important;
+        border: 1px solid #CCCCCC !important;
+    }}
+
+    /* الأزرار العادية (الافتراضية) */
+    .stButton>button {{
+        border-radius: 10px !important;
+        font-weight: bold !important;
+        transition: all 0.3s ease !important;
+    }}
+
+    .stButton>button:hover {{
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(255, 75, 75, 0.4);
+    }}
+
+    /* 6. طباعة الفاتورة */
+    .print-receipt {{
+        background-color: #ffffff;
+        border: 2px dashed #333;
+        padding: 20px;
+        border-radius: 10px;
+        font-family: 'Courier New', Courier, monospace;
+        color: #000000 !important;
+    }}
+    .print-receipt h3, .print-receipt h4, .print-receipt p, .print-receipt li {{
+        color: #000000 !important;
+    }}
+    </style>
+""",
+    unsafe_allow_html=True,
+)
 
 
 @st.cache_data(show_spinner=False)
@@ -255,31 +299,6 @@ def deduct_stock_for_order(cart_items):
             target_item["stock"] = max(0, target_item.get("stock", 0) - int(qty))
 
     save_data(MENU_FILE, menu)
-
-
-query_params = st.query_params
-
-if "app_language" not in st.session_state:
-    st.session_state.app_language = query_params.get("lang", None)
-
-if "current_page" not in st.session_state:
-    st.session_state.current_page = query_params.get("page", "main_menu")
-
-if "admin_language" not in st.session_state:
-    st.session_state.admin_language = None
-
-if "cart" not in st.session_state:
-    cart_param = query_params.get("cart", "{}")
-    try:
-        st.session_state.cart = json.loads(cart_param)
-    except Exception:
-        st.session_state.cart = {}
-
-if "last_order_id" not in st.session_state:
-    st.session_state.last_order_id = query_params.get("order_id", None)
-
-if "editing_item_id" not in st.session_state:
-    st.session_state.editing_item_id = None
 
 
 def update_url_params():
@@ -938,7 +957,7 @@ elif st.session_state.current_page in [
                 btn_disabled = is_out_of_stock or exceeds_stock
 
                 if st.button(
-                    add_btn_text, key=f"btn_{item['id']}", disabled=btn_disabled
+                    add_btn_text, key=f"btn_{item['id']}", disabled=btn_disabled, type="primary"
                 ):
                     st.session_state.cart[display_name] = already_in_cart + int(qty)
                     update_url_params()
