@@ -13,6 +13,7 @@ st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 ORDERS_FILE = "orders.json"
 RESERVATIONS_FILE = "reservations.json"
 MENU_FILE = "menu.json"
+CONTACT_FILE = "contact_info.json"
 
 LANGUAGES = {
     "English": "en",
@@ -50,6 +51,11 @@ DEFAULT_MENU = [
         "image": "https://images.unsplash.com/photo-1613478223719-2ab802602423?w=300",
     },
 ]
+
+DEFAULT_CONTACT = {
+    "phone": "+971 50 123 4567",
+    "address": "Main Street, City",
+}
 
 ALL_TABLES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
@@ -213,6 +219,10 @@ def save_data(file_path, data):
 
 def get_menu():
     return load_data(MENU_FILE, DEFAULT_MENU)
+
+
+def get_contact_info():
+    return load_data(CONTACT_FILE, DEFAULT_CONTACT)
 
 
 def get_available_tables():
@@ -433,12 +443,14 @@ elif st.session_state.current_page == "admin_page":
         tab_a2_text = translate_text("Reservations", admin_lang)
         tab_a3_text = translate_text("Manage Menu & Inventory", admin_lang)
         tab_a4_text = translate_text("Reports & Profits", admin_lang)
+        tab_a5_text = translate_text("Contact Info", admin_lang)
 
-        tab1, tab2, tab3, tab4 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
             f"📦 {tab_a1_text}",
             f"📅 {tab_a2_text}",
             f"📜 {tab_a3_text}",
             f"📈 {tab_a4_text}",
+            f"📞 {tab_a5_text}",
         ])
 
         with tab1:
@@ -873,6 +885,36 @@ elif st.session_state.current_page == "admin_page":
                     )
                 )
 
+        # ==========================================
+        # 5. تعديل بيانات التواصل
+        # ==========================================
+        with tab5:
+            st.header(tab_a5_text)
+            contact_data = get_contact_info()
+
+            edit_phone = st.text_input(
+                translate_text("Phone Number", admin_lang),
+                value=contact_data.get("phone", ""),
+            )
+            edit_address = st.text_input(
+                translate_text("Address", admin_lang),
+                value=contact_data.get("address", ""),
+            )
+
+            if st.button(
+                translate_text("Save Contact Info", admin_lang), type="primary"
+            ):
+                save_data(
+                    CONTACT_FILE,
+                    {"phone": edit_phone, "address": edit_address},
+                )
+                st.success(
+                    translate_text(
+                        "Contact info updated successfully!", admin_lang
+                    )
+                )
+                st.rerun()
+
     else:
         st.sidebar.error(translate_text("Wrong password", admin_lang))
 
@@ -1270,8 +1312,9 @@ elif st.session_state.current_page in [
             time.sleep(5)
             st.rerun()
 
-    # 6. صفحة تواصل معنا
+    # 6. صفحة تواصل معنا الديناميكية
     elif st.session_state.current_page == "contact_page":
         st.title(f"📞 {translate_text('Contact Us', lang)}")
-        st.write(f"**{translate_text('Phone', lang)}:** +971 50 123 4567")
-        st.write(f"**{translate_text('Address', lang)}:** Main Street, City")
+        contact_info = get_contact_info()
+        st.write(f"**{translate_text('Phone', lang)}:** {contact_info.get('phone', '')}")
+        st.write(f"**{translate_text('Address', lang)}:** {contact_info.get('address', '')}")
