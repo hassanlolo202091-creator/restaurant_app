@@ -135,38 +135,34 @@ st.markdown(
         backdrop-filter: blur(12px);
     }}
 
-    /* 4. إبراز العناوين والنصوص */
+    /* 4. إبراز العناوين والنصوص العادية */
     h1, h2, h3, h4, h5, h6, p, label, span, .stMarkdown {{
         color: #FFFFFF !important;
     }}
 
-    /* 5. إصلاح ألوان أزرار الثانوي والرئيسي لظهور النصوص بوضوح ممتاز */
-    button[kind="primary"] {{
+    /* 5. حل جذري ونهائي لجميع الأزرار داخل وخارج الشريط الجانبي */
+    div.stButton > button, 
+    section[data-testid="stSidebar"] div.stButton > button {{
         background-color: #FF4B4B !important;
-        color: #FFFFFF !important;
-        font-weight: bold !important;
         border-radius: 10px !important;
         border: none !important;
-    }}
-
-    button[kind="secondary"] {{
-        background-color: #FFFFFF !important;
-        color: #111111 !important;
-        font-weight: bold !important;
-        border-radius: 10px !important;
-        border: 1px solid #CCCCCC !important;
-    }}
-
-    /* الأزرار العادية (الافتراضية) */
-    .stButton>button {{
-        border-radius: 10px !important;
-        font-weight: bold !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
         transition: all 0.3s ease !important;
     }}
 
-    .stButton>button:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(255, 75, 75, 0.4);
+    /* إجبار جميع النصوص داخل الأزرار على الظهور باللون الأبيض الناصع */
+    div.stButton > button *, 
+    section[data-testid="stSidebar"] div.stButton > button * {{
+        color: #FFFFFF !important;
+        font-weight: bold !important;
+    }}
+
+    /* تأثير الوقوف بالماوس على الزر */
+    div.stButton > button:hover, 
+    section[data-testid="stSidebar"] div.stButton > button:hover {{
+        background-color: #FF2B2B !important;
+        transform: translateY(-2px) scale(1.02) !important;
+        box-shadow: 0 6px 18px rgba(255, 75, 75, 0.5) !important;
     }}
 
     /* 6. طباعة الفاتورة */
