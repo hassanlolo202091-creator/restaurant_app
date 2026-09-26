@@ -146,7 +146,7 @@ st.markdown(
         color: #FFFFFF !important;
     }}
 
-    /* 5. حل جذري ونهائي لجميع الأزرار داخل وخارج الشريط الجانبي */
+    /* 5. تنسيق الأزرار لتناسب جميع الشاشات والموبايل */
     div.stButton > button, 
     section[data-testid="stSidebar"] div.stButton > button {{
         background-color: #FF4B4B !important;
@@ -344,12 +344,14 @@ if st.session_state.app_language is None:
 elif st.session_state.current_page == "main_menu":
     lang = st.session_state.app_language
 
-    st.sidebar.title("Options 🌐")
-    if st.sidebar.button("Change Language / تغيير اللغة"):
-        st.session_state.app_language = None
-        st.session_state.current_page = "main_menu"
-        update_url_params()
-        st.rerun()
+    # زر تغيير اللغة بارز في أعلى الشاشة الرئيسية للموبايل والكمبيوتر
+    col_top1, col_top2 = st.columns([3, 1])
+    with col_top2:
+        if st.button("🌐 Language / اللغة", use_container_width=True):
+            st.session_state.app_language = None
+            st.session_state.current_page = "main_menu"
+            update_url_params()
+            st.rerun()
 
     welcome_title = translate_text("Welcome to our restaurant", lang)
     st.title(f"🏠 {welcome_title}")
@@ -424,7 +426,8 @@ elif st.session_state.current_page == "main_menu":
 elif st.session_state.current_page == "admin_page":
     lang = st.session_state.app_language
 
-    if st.sidebar.button("Back to Main / العودة للرئيسية"):
+    # زر الرجوع في أعلى الصفحة مباشرة
+    if st.button("⬅️ Back to Main / العودة للرئيسية"):
         st.session_state.current_page = "main_menu"
         update_url_params()
         st.rerun()
@@ -932,10 +935,13 @@ elif st.session_state.current_page in [
 ]:
     lang = st.session_state.app_language
 
-    if st.sidebar.button("Back to Main / العودة للرئيسية"):
+    # زر الرجوع أعلى الشاشة مباشرة لسهولة الاستخدام من الموبايل
+    if st.button("⬅️ Back to Main / العودة للرئيسية"):
         st.session_state.current_page = "main_menu"
         update_url_params()
         st.rerun()
+
+    st.write("---")
 
     # 1. صفحة قائمة الطعام للزبون مع فحص دقيق يتجاوز المخزون
     if st.session_state.current_page == "food_menu_page":
