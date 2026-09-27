@@ -6,9 +6,16 @@ import os
 import random
 import time
 import pandas as pd
-import qrcode
 import streamlit as st
 from translate import Translator
+
+# استدعاء آمن لمكتبات الباركود لتجنب توقف التطبيق على السيرفر
+try:
+    import qrcode
+    from PIL import Image
+    QRCODE_AVAILABLE = True
+except ImportError:
+    QRCODE_AVAILABLE = False
 
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 
@@ -104,7 +111,6 @@ def get_menu():
 
 def get_settings():
     settings = load_data(SETTINGS_FILE, DEFAULT_SETTINGS)
-    # التأكد من دمج الخلفيات في حالة وجود مفاتيح مفقودة
     if "backgrounds" not in settings:
         settings["backgrounds"] = DEFAULT_SETTINGS["backgrounds"]
     else:
@@ -175,9 +181,6 @@ if "last_order_id" not in st.session_state:
     st.session_state.last_order_id = query_params.get("order_id", None)
 
 
-# ==========================================
-# تحميل الإعدادات الديناميكية والخلفية الخاصة بالصفحة
-# ==========================================
 app_settings = get_settings()
 page_bgs = app_settings.get("backgrounds", DEFAULT_SETTINGS["backgrounds"])
 
@@ -187,7 +190,6 @@ bg_url = page_bgs.get(curr_bg_key, page_bgs.get("main_menu", DEFAULT_SETTINGS["b
 st.markdown(
     f"""
     <style>
-    /* 1. خلفية متغيرة ديناميكياً يحددها الأدمن */
     .stApp {{
         background: linear-gradient(rgba(10, 10, 10, 0.78), rgba(10, 10, 10, 0.78)), 
                     url("{bg_url}");
@@ -196,7 +198,6 @@ st.markdown(
         background-attachment: fixed;
     }}
 
-    /* 2. ضبط مدخلات النصوص والمستندات */
     input, .stNumberInput input, div[data-baseweb="input"] input {{
         direction: ltr !important;
         font-family: Arial, Helvetica, sans-serif !important;
@@ -205,18 +206,15 @@ st.markdown(
         border-radius: 8px !important;
     }}
 
-    /* 3. تنسيق الشريط الجانبي */
     [data-testid="stSidebar"] {{
         background-color: rgba(20, 20, 20, 0.92) !important;
         backdrop-filter: blur(12px);
     }}
 
-    /* 4. العناوين والنصوص */
     h1, h2, h3, h4, h5, h6, p, label, span, .stMarkdown {{
         color: #FFFFFF !important;
     }}
 
-    /* 5. تنسيق الأزرار */
     div.stButton > button {{
         background-color: #FF4B4B !important;
         border-radius: 10px !important;
@@ -235,7 +233,6 @@ st.markdown(
         transform: translateY(-2px) scale(1.02) !important;
     }}
 
-    /* 6. تصميم الفاتورة الحرارية */
     .receipt-box {{
         background-color: #FFFFFF !important;
         color: #000000 !important;
@@ -329,7 +326,7 @@ def update_url_params():
 
 
 # ==========================================
-# 1. شاشة اختيار اللغة الابتدائية
+# 1. شاشة اختيار اللغة
 # ==========================================
 if st.session_state.app_language is None:
     st.markdown("<br><br>", unsafe_allow_html=True)
@@ -514,9 +511,6 @@ elif st.session_state.current_page == "admin_page":
             total_rev = sum(o.get("total", 0) for o in orders)
             st.metric("Total Revenue", f"{total_rev:.2f} AED")
 
-        # ==========================================
-        # تبويب الإعدادات الشامل (Settings)
-        # ==========================================
         with tab5:
             st.header("⚙️ General Settings / الإعدادات العامة")
             
@@ -584,33 +578,36 @@ elif st.session_state.current_page == "admin_page":
                     st.success("Google Maps URL saved successfully!")
                     st.rerun()
 
-        # تبويب مولد الباركود
         with tab6:
             st.header("📲 Table QR Code Generator")
             base_app_url = "https://restaurantapp-q9mvwzvmevytzln2zbzryx.streamlit.app"
             selected_qr_table = st.selectbox("Select Table Number", ALL_TABLES)
             qr_url = f"{base_app_url}/?table={selected_qr_table}"
             
-            qr = qrcode.QRCode(version=1, box_size=10, border=4)
-            qr.add_data(qr_url)
-            qr.make(fit=True)
-            img = qr.make_image(fill_color="black", back_color="white")
-            
-            buf = io.BytesIO()
-            img.save(buf, format="PNG")
-            byte_im = buf.getvalue()
-            
-            st.image(byte_im, caption=f"QR Code for Table #{selected_qr_table}", width=250)
-            st.download_button(
-                label=f"📥 Download QR Code for Table #{selected_qr_table}",
-                data=byte_im,
-                file_name=f"table_{selected_qr_table}_qr.png",
-                mime="image/png",
-            )
+            if QRCODE_AVAILABLE:
+                qr = qrcode.QRCode(version=1, box_size=10, border=4)
+                qr.add_data(qr_url)
+                qr.make(fit=True)
+                img = qr.make_image(fill_color="black", back_color="white")
+                
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                byte_im = buf.getvalue()
+                
+                st.image(byte_im, caption=f"QR Code for Table #{selected_qr_table}", width=250)
+                st.download_button(
+                    label=f"📥 Download QR Code for Table #{selected_qr_table}",
+                    data=byte_im,
+                    file_name=f"table_{selected_qr_table}_qr.png",
+                    mime="image/png",
+                )
+            else:
+                st.warning("Please add 'qrcode' and 'Pillow' to requirements.txt on GitHub to generate QR images.")
+                st.info(f"Direct Table Link: {qr_url}")
 
 
 # ==========================================
-# 5. صفحات الأقسام والخدمات للزبون
+# 5. صفحات الخدمة
 # ==========================================
 elif st.session_state.current_page in [
     "food_menu_page",
