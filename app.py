@@ -1,19 +1,24 @@
 import base64
 import datetime
+import io
 import json
 import os
 import random
 import time
 import pandas as pd
+import qrcode
 import streamlit as st
 from translate import Translator
 
 st.set_page_config(page_title="Restaurant App", page_icon="🍔", layout="wide")
 
+# ==========================================
+# أسماء ملفات البيانات
+# ==========================================
 ORDERS_FILE = "orders.json"
 RESERVATIONS_FILE = "reservations.json"
 MENU_FILE = "menu.json"
-CONTACT_FILE = "contact_info.json"
+SETTINGS_FILE = "settings.json"
 
 LANGUAGES = {
     "English": "en",
@@ -52,152 +57,28 @@ DEFAULT_MENU = [
     },
 ]
 
-DEFAULT_CONTACT = {
+DEFAULT_SETTINGS = {
+    "restaurant_name": "Welcome to our restaurant",
+    "restaurant_description": "Enjoy the best meals and fresh ingredients everyday!",
     "phone": "+971 50 123 4567",
     "address": "Main Street, City",
+    "google_maps_url": "https://maps.google.com",
+    "backgrounds": {
+        "select_lang": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=1920",
+        "main_menu": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=1920",
+        "food_menu_page": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1920",
+        "cart_page": "https://images.unsplash.com/photo-1556742049-0a67d5193911?q=80&w=1920",
+        "reservation_page": "https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?q=80&w=1920",
+        "delivery_page": "https://images.unsplash.com/photo-1526367790999-0150786686a2?q=80&w=1920",
+        "track_orders_page": "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=1920",
+        "contact_page": "https://images.unsplash.com/photo-1423666639041-f56000c27a9a?q=80&w=1920",
+        "admin_page": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=1920",
+    }
 }
 
 ALL_TABLES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-
-ORDER_STAGES = [
-    "Order Received",
-    "Preparing",
-    "Out for Delivery",
-    "Delivered",
-]
-
-PAYMENT_METHODS = [
-    "Cash on Delivery",
-    "Card on Delivery",
-    "Online Payment",
-]
-
-query_params = st.query_params
-
-if "app_language" not in st.session_state:
-    st.session_state.app_language = query_params.get("lang", None)
-
-if "current_page" not in st.session_state:
-    st.session_state.current_page = query_params.get("page", "main_menu")
-
-if "admin_language" not in st.session_state:
-    st.session_state.admin_language = None
-
-if "cart" not in st.session_state:
-    cart_param = query_params.get("cart", "{}")
-    try:
-        st.session_state.cart = json.loads(cart_param)
-    except Exception:
-        st.session_state.cart = {}
-
-if "last_order_id" not in st.session_state:
-    st.session_state.last_order_id = query_params.get("order_id", None)
-
-if "editing_item_id" not in st.session_state:
-    st.session_state.editing_item_id = None
-
-# ==========================================
-# تخصيص خلفيات مختلفة لكل صفحة وحل مشكلة الأزرار
-# ==========================================
-page_backgrounds = {
-    "select_lang": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=1920",
-    "main_menu": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=1920",
-    "food_menu_page": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1920",
-    "cart_page": "https://images.unsplash.com/photo-1556742049-0a67d5193911?q=80&w=1920",
-    "reservation_page": "https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?q=80&w=1920",
-    "delivery_page": "https://images.unsplash.com/photo-1526367790999-0150786686a2?q=80&w=1920",
-    "track_orders_page": "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=1920",
-    "contact_page": "https://images.unsplash.com/photo-1423666639041-f56000c27a9a?q=80&w=1920",
-    "admin_page": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=1920",
-}
-
-curr_bg_key = "select_lang" if st.session_state.app_language is None else st.session_state.current_page
-bg_url = page_backgrounds.get(curr_bg_key, page_backgrounds["main_menu"])
-
-st.markdown(
-    f"""
-    <style>
-    /* 1. خلفية متغيرة ديناميكياً حسب الصفحة */
-    .stApp {{
-        background: linear-gradient(rgba(10, 10, 10, 0.75), rgba(10, 10, 10, 0.75)), 
-                    url("{bg_url}");
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-    }}
-
-    /* 2. ضبط الأرقام والمدخلات */
-    input, .stNumberInput input, div[data-baseweb="input"] input {{
-        direction: ltr !important;
-        font-family: Arial, Helvetica, sans-serif !important;
-        font-variant-numeric: lining-nums tabular-nums !important;
-        color: #000000 !important;
-        -webkit-locale: "en-US" !important;
-    }}
-
-    /* 3. تنسيق الشريط الجانبي */
-    [data-testid="stSidebar"] {{
-        background-color: rgba(20, 20, 20, 0.88) !important;
-        backdrop-filter: blur(12px);
-    }}
-
-    /* 4. إبراز العناوين والنصوص العادية */
-    h1, h2, h3, h4, h5, h6, p, label, span, .stMarkdown {{
-        color: #FFFFFF !important;
-    }}
-
-    /* 5. تنسيق الأزرار لتناسب جميع الشاشات والموبايل */
-    div.stButton > button, 
-    section[data-testid="stSidebar"] div.stButton > button {{
-        background-color: #FF4B4B !important;
-        border-radius: 10px !important;
-        border: none !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
-        transition: all 0.3s ease !important;
-    }}
-
-    /* إجبار جميع النصوص داخل الأزرار على الظهور باللون الأبيض الناصع */
-    div.stButton > button *, 
-    section[data-testid="stSidebar"] div.stButton > button * {{
-        color: #FFFFFF !important;
-        font-weight: bold !important;
-    }}
-
-    /* تأثير الوقوف بالماوس على الزر */
-    div.stButton > button:hover, 
-    section[data-testid="stSidebar"] div.stButton > button:hover {{
-        background-color: #FF2B2B !important;
-        transform: translateY(-2px) scale(1.02) !important;
-        box-shadow: 0 6px 18px rgba(255, 75, 75, 0.5) !important;
-    }}
-
-    /* 6. طباعة الفاتورة */
-    .print-receipt {{
-        background-color: #ffffff;
-        border: 2px dashed #333;
-        padding: 20px;
-        border-radius: 10px;
-        font-family: 'Courier New', Courier, monospace;
-        color: #000000 !important;
-    }}
-    .print-receipt h3, .print-receipt h4, .print-receipt p, .print-receipt li {{
-        color: #000000 !important;
-    }}
-    </style>
-""",
-    unsafe_allow_html=True,
-)
-
-
-@st.cache_data(show_spinner=False)
-def translate_text(text, target_lang):
-    if target_lang == "en" or not text:
-        return text
-    try:
-        translator = Translator(to_lang=target_lang, from_lang="en")
-        return translator.translate(text)
-    except Exception:
-        return text
+ORDER_STAGES = ["Order Received", "Preparing", "Out for Delivery", "Delivered"]
+PAYMENT_METHODS = ["Cash on Delivery", "Card on Delivery", "Online Payment"]
 
 
 def load_data(file_path, default_val=None):
@@ -221,34 +102,29 @@ def get_menu():
     return load_data(MENU_FILE, DEFAULT_MENU)
 
 
-def get_contact_info():
-    return load_data(CONTACT_FILE, DEFAULT_CONTACT)
+def get_settings():
+    settings = load_data(SETTINGS_FILE, DEFAULT_SETTINGS)
+    # التأكد من دمج الخلفيات في حالة وجود مفاتيح مفقودة
+    if "backgrounds" not in settings:
+        settings["backgrounds"] = DEFAULT_SETTINGS["backgrounds"]
+    else:
+        for k, v in DEFAULT_SETTINGS["backgrounds"].items():
+            if k not in settings["backgrounds"]:
+                settings["backgrounds"][k] = v
+    return settings
 
 
 def get_available_tables():
     reservations = load_data(RESERVATIONS_FILE)
-    reserved_tables = [
-        r.get("table_number") for r in reservations if "table_number" in r
-    ]
-    available = [t for t in ALL_TABLES if t not in reserved_tables]
-    return available
+    reserved_tables = [r.get("table_number") for r in reservations if "table_number" in r]
+    return [t for t in ALL_TABLES if t not in reserved_tables]
 
 
-def add_menu_item(
-    name_en, price, cost, track_stock, stock_qty, image_data=""
-):
+def add_menu_item(name_en, price, cost, track_stock, stock_qty, image_data=""):
     menu = get_menu()
-    new_id = (
-        max(
-            [item.get("id", 0) for item in menu if isinstance(item, dict)],
-            default=0,
-        )
-        + 1
-    )
+    new_id = max([item.get("id", 0) for item in menu if isinstance(item, dict)], default=0) + 1
     if not image_data:
-        image_data = (
-            "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300"
-        )
+        image_data = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300"
     menu.append({
         "id": new_id,
         "name": name_en.strip(),
@@ -261,30 +137,9 @@ def add_menu_item(
     save_data(MENU_FILE, menu)
 
 
-def update_menu_item(
-    item_id, name_en, price, cost, track_stock, stock_qty, image_data=""
-):
-    menu = get_menu()
-    for item in menu:
-        if isinstance(item, dict) and item.get("id") == item_id:
-            item["name"] = name_en.strip()
-            item["price"] = float(price)
-            item["cost"] = float(cost)
-            item["track_stock"] = bool(track_stock)
-            item["stock"] = int(stock_qty) if track_stock else 0
-            if image_data:
-                item["image"] = image_data
-            break
-    save_data(MENU_FILE, menu)
-
-
 def delete_menu_item(item_id):
     menu = get_menu()
-    menu = [
-        item
-        for item in menu
-        if isinstance(item, dict) and item.get("id") != item_id
-    ]
+    menu = [item for item in menu if isinstance(item, dict) and item.get("id") != item_id]
     save_data(MENU_FILE, menu)
 
 
@@ -293,18 +148,168 @@ def deduct_stock_for_order(cart_items):
     for disp_name, qty in cart_items.items():
         target_item = None
         for item in menu:
-            if (
-                item["name"] == disp_name
-                or translate_text(item["name"], st.session_state.app_language)
-                == disp_name
-            ):
+            if item["name"] == disp_name or translate_text(item["name"], st.session_state.app_language) == disp_name:
                 target_item = item
                 break
-
         if target_item and target_item.get("track_stock", False):
             target_item["stock"] = max(0, target_item.get("stock", 0) - int(qty))
-
     save_data(MENU_FILE, menu)
+
+
+query_params = st.query_params
+
+if "app_language" not in st.session_state:
+    st.session_state.app_language = query_params.get("lang", None)
+
+if "current_page" not in st.session_state:
+    st.session_state.current_page = query_params.get("page", "main_menu")
+
+if "cart" not in st.session_state:
+    cart_param = query_params.get("cart", "{}")
+    try:
+        st.session_state.cart = json.loads(cart_param)
+    except Exception:
+        st.session_state.cart = {}
+
+if "last_order_id" not in st.session_state:
+    st.session_state.last_order_id = query_params.get("order_id", None)
+
+
+# ==========================================
+# تحميل الإعدادات الديناميكية والخلفية الخاصة بالصفحة
+# ==========================================
+app_settings = get_settings()
+page_bgs = app_settings.get("backgrounds", DEFAULT_SETTINGS["backgrounds"])
+
+curr_bg_key = "select_lang" if st.session_state.app_language is None else st.session_state.current_page
+bg_url = page_bgs.get(curr_bg_key, page_bgs.get("main_menu", DEFAULT_SETTINGS["backgrounds"]["main_menu"]))
+
+st.markdown(
+    f"""
+    <style>
+    /* 1. خلفية متغيرة ديناميكياً يحددها الأدمن */
+    .stApp {{
+        background: linear-gradient(rgba(10, 10, 10, 0.78), rgba(10, 10, 10, 0.78)), 
+                    url("{bg_url}");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }}
+
+    /* 2. ضبط مدخلات النصوص والمستندات */
+    input, .stNumberInput input, div[data-baseweb="input"] input {{
+        direction: ltr !important;
+        font-family: Arial, Helvetica, sans-serif !important;
+        color: #000000 !important;
+        background-color: #FFFFFF !important;
+        border-radius: 8px !important;
+    }}
+
+    /* 3. تنسيق الشريط الجانبي */
+    [data-testid="stSidebar"] {{
+        background-color: rgba(20, 20, 20, 0.92) !important;
+        backdrop-filter: blur(12px);
+    }}
+
+    /* 4. العناوين والنصوص */
+    h1, h2, h3, h4, h5, h6, p, label, span, .stMarkdown {{
+        color: #FFFFFF !important;
+    }}
+
+    /* 5. تنسيق الأزرار */
+    div.stButton > button {{
+        background-color: #FF4B4B !important;
+        border-radius: 10px !important;
+        border: none !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+        transition: all 0.3s ease !important;
+    }}
+
+    div.stButton > button * {{
+        color: #FFFFFF !important;
+        font-weight: bold !important;
+    }}
+
+    div.stButton > button:hover {{
+        background-color: #FF2B2B !important;
+        transform: translateY(-2px) scale(1.02) !important;
+    }}
+
+    /* 6. تصميم الفاتورة الحرارية */
+    .receipt-box {{
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
+        padding: 20px;
+        border-radius: 8px;
+        width: 100%;
+        max-width: 380px;
+        margin: 15px auto;
+        font-family: 'Courier New', Courier, monospace;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        border: 1px solid #ddd;
+    }}
+    .receipt-box * {{ color: #000000 !important; }}
+    .receipt-header {{
+        text-align: center;
+        border-bottom: 2px dashed #000;
+        padding-bottom: 10px;
+        margin-bottom: 10px;
+    }}
+    .receipt-row {{ display: flex; justify-content: space-between; margin: 5px 0; }}
+    .receipt-footer {{
+        border-top: 2px dashed #000;
+        margin-top: 10px;
+        padding-top: 10px;
+        text-align: center;
+    }}
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
+
+@st.cache_data(show_spinner=False)
+def translate_text(text, target_lang):
+    if target_lang == "en" or not text:
+        return text
+    try:
+        translator = Translator(to_lang=target_lang, from_lang="en")
+        return translator.translate(text)
+    except Exception:
+        return text
+
+
+def generate_receipt_html(order):
+    settings = get_settings()
+    items_html = ""
+    for name, qty in order.get("items", {}).items():
+        items_html += f'<div class="receipt-row"><span>{name} x{qty}</span></div>'
+    
+    table_info = f"<p><strong>Table:</strong> #{order.get('table')}</p>" if "table" in order else ""
+    address_info = f"<p><strong>Address:</strong> {order.get('address')}</p>" if "address" in order else ""
+
+    return f"""
+    <div class="receipt-box">
+        <div class="receipt-header">
+            <h3>🧾 {settings.get('restaurant_name', 'RESTAURANT RECEIPT')}</h3>
+            <p>Tel: {settings.get('phone', '')}</p>
+            <p>Date: {order.get('date', '')}</p>
+            <p><strong>Order ID: {order.get('order_id')}</strong></p>
+        </div>
+        <p><strong>Customer:</strong> {order.get('customer')}</p>
+        <p><strong>Phone:</strong> {order.get('phone')}</p>
+        <p><strong>Type:</strong> {order.get('order_type')} | <strong>Pay:</strong> {order.get('payment_method')}</p>
+        {table_info}
+        {address_info}
+        <hr style="border-top: 1px dashed #000;">
+        <h4 style="margin:5px 0;">ITEMS:</h4>
+        {items_html}
+        <div class="receipt-footer">
+            <h3>TOTAL: {order.get('total'):.2f} AED</h3>
+            <p>Thank you for your visit!</p>
+        </div>
+    </div>
+    """
 
 
 def update_url_params():
@@ -344,7 +349,6 @@ if st.session_state.app_language is None:
 elif st.session_state.current_page == "main_menu":
     lang = st.session_state.app_language
 
-    # زر تغيير اللغة بارز في أعلى الشاشة الرئيسية للموبايل والكمبيوتر
     col_top1, col_top2 = st.columns([3, 1])
     with col_top2:
         if st.button("🌐 Language / اللغة", use_container_width=True):
@@ -353,577 +357,260 @@ elif st.session_state.current_page == "main_menu":
             update_url_params()
             st.rerun()
 
-    welcome_title = translate_text("Welcome to our restaurant", lang)
+    welcome_title = translate_text(app_settings.get("restaurant_name", "Welcome to our restaurant"), lang)
     st.title(f"🏠 {welcome_title}")
+    st.write(translate_text(app_settings.get("restaurant_description", ""), lang))
     st.write("---")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        btn_menu = translate_text("Food Menu", lang)
-        if st.button(f"📜 {btn_menu}", use_container_width=True, type="primary"):
+        if st.button(f"📜 {translate_text('Food Menu', lang)}", use_container_width=True, type="primary"):
             st.session_state.current_page = "food_menu_page"
             update_url_params()
             st.rerun()
-
         st.write("<br>", unsafe_allow_html=True)
-
-        btn_reservation = translate_text("Table Reservation", lang)
-        if st.button(
-            f"📅 {btn_reservation}", use_container_width=True, type="primary"
-        ):
+        if st.button(f"📅 {translate_text('Table Reservation', lang)}", use_container_width=True, type="primary"):
             st.session_state.current_page = "reservation_page"
             update_url_params()
             st.rerun()
 
     with col2:
-        btn_delivery = translate_text("Delivery", lang)
-        if st.button(
-            f"🛵 {btn_delivery}", use_container_width=True, type="primary"
-        ):
+        if st.button(f"🛵 {translate_text('Delivery', lang)}", use_container_width=True, type="primary"):
             st.session_state.current_page = "delivery_page"
             update_url_params()
             st.rerun()
-
         st.write("<br>", unsafe_allow_html=True)
-
-        btn_cart = translate_text("Shopping Cart", lang)
-        if st.button(f"🛒 {btn_cart}", use_container_width=True, type="secondary"):
+        if st.button(f"🛒 {translate_text('Shopping Cart', lang)}", use_container_width=True, type="secondary"):
             st.session_state.current_page = "cart_page"
             update_url_params()
             st.rerun()
 
     with col3:
-        btn_track = translate_text("Track Orders", lang)
-        if st.button(
-            f"📍 {btn_track}", use_container_width=True, type="secondary"
-        ):
+        if st.button(f"📍 {translate_text('Track Orders', lang)}", use_container_width=True, type="secondary"):
             st.session_state.current_page = "track_orders_page"
             update_url_params()
             st.rerun()
-
         st.write("<br>", unsafe_allow_html=True)
-
-        btn_contact = translate_text("Contact Us", lang)
-        if st.button(
-            f"📞 {btn_contact}", use_container_width=True, type="secondary"
-        ):
+        if st.button(f"📞 {translate_text('Contact Us', lang)}", use_container_width=True, type="secondary"):
             st.session_state.current_page = "contact_page"
             update_url_params()
             st.rerun()
 
     st.write("---")
-    btn_admin = translate_text("Admin Dashboard", lang)
-    if st.button(f"🔒 {btn_admin}", use_container_width=True):
+    if st.button(f"🔒 {translate_text('Admin Dashboard', lang)}", use_container_width=True):
         st.session_state.current_page = "admin_page"
         update_url_params()
         st.rerun()
 
 
 # ==========================================
-# 3. لوحة التحكم (Admin Mode)
+# 3. لوحة التحكم (Admin Dashboard)
 # ==========================================
 elif st.session_state.current_page == "admin_page":
     lang = st.session_state.app_language
 
-    # زر الرجوع في أعلى الصفحة مباشرة
     if st.button("⬅️ Back to Main / العودة للرئيسية"):
         st.session_state.current_page = "main_menu"
         update_url_params()
         st.rerun()
 
-    admin_lang = st.session_state.admin_language if st.session_state.admin_language else lang
+    st.write("---")
+    
+    if "admin_logged_in" not in st.session_state:
+        st.session_state.admin_logged_in = False
 
-    password = st.sidebar.text_input(
-        translate_text("Password", admin_lang), type="password"
-    )
+    if not st.session_state.admin_logged_in:
+        st.subheader("🔒 Enter Admin Password / أدخل كلمة المرور")
+        password = st.text_input("Password", type="password", key="admin_pwd_main")
+        if st.button("Login / دخول", type="primary"):
+            if password == "1234":
+                st.session_state.admin_logged_in = True
+                st.success("Logged in successfully!")
+                st.rerun()
+            else:
+                st.error("Wrong password!")
+    else:
+        st.title(f"🛠️ Admin Dashboard")
 
-    if password == "1234":
-        st.sidebar.success(translate_text("Logged in successfully", admin_lang))
-        st.title(f"🛠️ {translate_text('Admin Dashboard', admin_lang)}")
-
-        tab_a1_text = translate_text("Incoming Orders", admin_lang)
-        tab_a2_text = translate_text("Reservations", admin_lang)
-        tab_a3_text = translate_text("Manage Menu & Inventory", admin_lang)
-        tab_a4_text = translate_text("Reports & Profits", admin_lang)
-        tab_a5_text = translate_text("Contact Info", admin_lang)
-
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            f"📦 {tab_a1_text}",
-            f"📅 {tab_a2_text}",
-            f"📜 {tab_a3_text}",
-            f"📈 {tab_a4_text}",
-            f"📞 {tab_a5_text}",
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "📦 Orders",
+            "📅 Reservations",
+            "📜 Menu",
+            "📈 Reports",
+            "⚙️ Settings",
+            "📲 Table QR Code",
         ])
 
         with tab1:
-            st.header(tab_a1_text)
+            st.header("Incoming Orders")
             orders = load_data(ORDERS_FILE)
             if orders:
                 for idx, o in enumerate(reversed(orders), 1):
                     order_id = o.get("order_id", f"#{idx}")
                     current_status = o.get("status", "Order Received")
 
-                    with st.expander(
-                        f"Order {order_id} - {o.get('customer')} | Total:"
-                        f" {o.get('total')} {translate_text('AED', admin_lang)} | Status:"
-                        f" {translate_text(current_status, admin_lang)}"
-                    ):
-                        st.write(
-                            f"**{translate_text('Order Type', admin_lang)}:**"
-                            f" {o.get('order_type', '-')}"
-                        )
-                        st.write(
-                            f"**{translate_text('Payment Method', admin_lang)}:**"
-                            f" {translate_text(o.get('payment_method', '-'), admin_lang)}"
-                        )
-                        st.write(
-                            f"**{translate_text('Phone', admin_lang)}:** {o.get('phone', '-')}"
-                        )
-                        if "table" in o:
-                            st.write(
-                                f"**{translate_text('Table Number', admin_lang)}:**"
-                                f" {o.get('table')}"
-                            )
-                        if "address" in o:
-                            st.write(
-                                f"**{translate_text('Delivery Address', admin_lang)}:**"
-                                f" {o.get('address')}"
-                            )
-
-                        st.write(f"**{translate_text('Items', admin_lang)}:**")
-                        for item_name, qty in o.get("items", {}).items():
-                            st.write(f"- {item_name} × {qty}")
-
-                        st.markdown("---")
-                        st.write(
-                            f"**{translate_text('Update Order Status', admin_lang)}:**"
-                        )
+                    with st.expander(f"Order {order_id} - {o.get('customer')} | Total: {o.get('total')} AED | Status: {current_status}"):
+                        st.markdown(generate_receipt_html(o), unsafe_allow_html=True)
                         new_status = st.selectbox(
-                            translate_text("Select Status", admin_lang),
+                            "Select Status",
                             options=ORDER_STAGES,
-                            index=ORDER_STAGES.index(current_status)
-                            if current_status in ORDER_STAGES
-                            else 0,
+                            index=ORDER_STAGES.index(current_status) if current_status in ORDER_STAGES else 0,
                             key=f"status_select_{order_id}",
                         )
-                        if st.button(
-                            translate_text("Save Status", admin_lang),
-                            key=f"save_status_{order_id}",
-                        ):
+                        if st.button("Save Status", key=f"save_status_{order_id}"):
                             for real_order in orders:
                                 if real_order.get("order_id") == order_id:
                                     real_order["status"] = new_status
                                     break
                             save_data(ORDERS_FILE, orders)
-                            st.success(
-                                translate_text("Status updated successfully!", admin_lang)
-                            )
+                            st.success("Status updated!")
                             st.rerun()
-
-                        if st.button(
-                            f"🖨️ {translate_text('Print Kitchen Receipt', admin_lang)}",
-                            key=f"print_{order_id}",
-                        ):
-                            items_html = "".join([
-                                f"<li>{k} x {v}</li>" for k, v in o.get("items", {}).items()
-                            ])
-                            receipt_code = f"""
-                                            <div class="print-receipt">
-                                                <h3>🧾 KITCHEN RECEIPT - {order_id}</h3>
-                                                <p><strong>Customer:</strong> {o.get('customer')}</p>
-                                                <p><strong>Phone:</strong> {o.get('phone')}</p>
-                                                <p><strong>Type:</strong> {o.get('order_type')} | <strong>Payment:</strong> {o.get('payment_method')}</p>
-                                                <hr>
-                                                <ul>{items_html}</ul>
-                                                <hr>
-                                                <h4>TOTAL: {o.get('total')} AED</h4>
-                                            </div>
-                                            """
-                            st.markdown(receipt_code, unsafe_allow_html=True)
             else:
-                st.info(translate_text("No orders yet", admin_lang))
+                st.info("No orders yet")
 
         with tab2:
-            st.header(tab_a2_text)
+            st.header("Reservations")
             reservations = load_data(RESERVATIONS_FILE)
             if reservations:
                 for r in reversed(reservations):
-                    st.write(
-                        f"📌 **{r.get('name')}** -"
-                        f" {translate_text('Table Number', admin_lang)}:"
-                        f" {r.get('table_number')} |"
-                        f" {translate_text('Phone', admin_lang)}: {r.get('phone')} |"
-                        f" {translate_text('Date', admin_lang)}: {r.get('date')} |"
-                        f" {translate_text('Time', admin_lang)}: {r.get('time')}"
-                    )
+                    st.write(f"📌 **{r.get('name')}** - Table: #{r.get('table_number')} | Phone: {r.get('phone')} | Date: {r.get('date')} | Time: {r.get('time')}")
             else:
-                st.info(translate_text("No reservations yet", admin_lang))
+                st.info("No reservations yet")
 
         with tab3:
-            st.header(tab_a3_text)
-            st.subheader(
-                translate_text("Add New Menu Item (English Source)", admin_lang)
-            )
-
+            st.header("Manage Menu & Inventory")
             col_name, col_price, col_cost = st.columns([3, 1, 1])
             with col_name:
-                new_name_input = st.text_input(
-                    translate_text("Item Name (English)", admin_lang)
-                )
+                new_name_input = st.text_input("Item Name (English)")
             with col_price:
-                new_price_input = st.number_input(
-                    f"{translate_text('Price', admin_lang)} ({translate_text('AED', admin_lang)})",
-                    min_value=1.0,
-                    value=20.0,
-                )
+                new_price_input = st.number_input("Price (AED)", min_value=1.0, value=20.0)
             with col_cost:
-                new_cost_input = st.number_input(
-                    f"{translate_text('Cost Price', admin_lang)} ({translate_text('AED', admin_lang)})",
-                    min_value=0.0,
-                    value=8.0,
-                )
+                new_cost_input = st.number_input("Cost Price (AED)", min_value=0.0, value=8.0)
 
-            st.write(f"**{translate_text('Inventory Settings', admin_lang)}:**")
-            track_stock_opt = st.checkbox(
-                translate_text(
-                    "Enable inventory tracking for this item?", admin_lang
-                )
-            )
-
-            stock_qty_input = 0
-            if track_stock_opt:
-                stock_qty_input = st.number_input(
-                    translate_text("Available Stock Quantity", admin_lang),
-                    min_value=0,
-                    value=10,
-                )
-
-            img_option = st.radio(
-                translate_text("Image Source", admin_lang),
-                options=[
-                    translate_text("Image URL (Google/Web)", admin_lang),
-                    translate_text("Upload from Device", admin_lang),
-                ],
-                horizontal=True,
-            )
-
-            final_image_data = ""
-            if "URL" in img_option or "رابط" in img_option or "Google" in img_option:
-                final_image_data = st.text_input(
-                    translate_text("Image URL", admin_lang)
-                )
-            else:
-                uploaded_file = st.file_uploader(
-                    translate_text("Choose image file", admin_lang),
-                    type=["png", "jpg", "jpeg", "webp"],
-                )
-                if uploaded_file is not None:
-                    bytes_data = uploaded_file.getvalue()
-                    base64_str = base64.b64encode(bytes_data).decode()
-                    mime_type = uploaded_file.type
-                    final_image_data = f"data:{mime_type};base64,{base64_str}"
-
-            if st.button(translate_text("Add Item", admin_lang)):
+            track_stock_opt = st.checkbox("Enable inventory tracking?")
+            stock_qty_input = st.number_input("Stock Quantity", min_value=0, value=10) if track_stock_opt else 0
+            final_image_data = st.text_input("Image URL")
+            
+            if st.button("Add Item"):
                 if new_name_input:
-                    add_menu_item(
-                        new_name_input,
-                        new_price_input,
-                        new_cost_input,
-                        track_stock_opt,
-                        stock_qty_input,
-                        final_image_data,
-                    )
-                    st.success(translate_text("Item added successfully!", admin_lang))
+                    add_menu_item(new_name_input, new_price_input, new_cost_input, track_stock_opt, stock_qty_input, final_image_data)
+                    st.success("Item added!")
                     st.rerun()
-                else:
-                    st.warning(translate_text("Please enter item name", admin_lang))
 
             st.markdown("---")
-            st.subheader(translate_text("Current Menu & Inventory", admin_lang))
-            current_menu = get_menu()
-
-            for item in current_menu:
-                c1, c2, c3 = st.columns([3, 1, 1])
-                disp_name = translate_text(item["name"], admin_lang)
-
-                if item.get("track_stock", False):
-                    curr_stk = item.get("stock", 0)
-                    if curr_stk == 0:
-                        stock_str = (
-                            "<span style='color: #ff4b4b; font-weight: bold;'>🔴 Stock: 0"
-                            " (Out of Stock)</span>"
-                        )
-                    elif curr_stk <= 5:
-                        stock_str = (
-                            f"<span style='color: #ffa500; font-weight: bold;'>⚠️ Stock:"
-                            f" {curr_stk} (Low Stock Warning!)</span>"
-                        )
-                    else:
-                        stock_str = f"📦 Stock: {curr_stk}"
-                else:
-                    stock_str = "♾️ Unlimited Stock"
-
-                cost_status = (
-                    f"Cost: {item.get('cost', 0.0)} {translate_text('AED', admin_lang)}"
-                )
-
+            for item in get_menu():
+                c1, c2 = st.columns([4, 1])
                 with c1:
-                    line_html = f"• <strong>{disp_name}</strong> - Price: {item['price']} {translate_text('AED', admin_lang)} | {cost_status} | {stock_str}"
-                    st.markdown(line_html, unsafe_allow_html=True)
-
+                    st.write(f"• **{item['name']}** - Price: {item['price']} AED | Stock: {item.get('stock', 'Unlimited')}")
                 with c2:
-                    if st.button(
-                        translate_text("Edit", admin_lang), key=f"edit_btn_{item['id']}"
-                    ):
-                        st.session_state.editing_item_id = (
-                            None
-                            if st.session_state.editing_item_id == item["id"]
-                            else item["id"]
-                        )
-                        st.rerun()
-
-                with c3:
-                    if st.button(
-                        translate_text("Delete", admin_lang), key=f"del_{item['id']}"
-                    ):
+                    if st.button("Delete", key=f"del_{item['id']}"):
                         delete_menu_item(item["id"])
-                        st.success(translate_text("Deleted successfully", admin_lang))
                         st.rerun()
 
-                if st.session_state.editing_item_id == item["id"]:
-                    with st.container():
-                        st.markdown(
-                            f"##### ✏️ {translate_text('Edit Item', admin_lang)}:"
-                            f" {disp_name}"
-                        )
-                        ec1, ec2, ec3 = st.columns([3, 1, 1])
-
-                        with ec1:
-                            e_name = st.text_input(
-                                translate_text("Item Name", admin_lang),
-                                value=item["name"],
-                                key=f"e_name_{item['id']}",
-                            )
-                        with ec2:
-                            e_price = st.number_input(
-                                translate_text("Price", admin_lang),
-                                value=float(item["price"]),
-                                key=f"e_price_{item['id']}",
-                            )
-                        with ec3:
-                            e_cost = st.number_input(
-                                translate_text("Cost Price", admin_lang),
-                                value=float(item.get("cost", 0.0)),
-                                key=f"e_cost_{item['id']}",
-                            )
-
-                        e_track = st.checkbox(
-                            translate_text(
-                                "Enable inventory tracking for this item?", admin_lang
-                            ),
-                            value=item.get("track_stock", False),
-                            key=f"e_track_{item['id']}",
-                        )
-
-                        e_stock = item.get("stock", 0)
-                        if e_track:
-                            e_stock = st.number_input(
-                                translate_text("Available Stock Quantity", admin_lang),
-                                min_value=0,
-                                value=int(item.get("stock", 0)),
-                                key=f"e_stock_{item['id']}",
-                            )
-
-                        e_img = st.text_input(
-                            translate_text("Image URL", admin_lang),
-                            value=item.get("image", ""),
-                            key=f"e_img_{item['id']}",
-                        )
-
-                        col_save, col_cancel = st.columns([1, 1])
-                        with col_save:
-                            if st.button(
-                                translate_text("Save Changes", admin_lang),
-                                key=f"save_edit_{item['id']}",
-                                type="primary",
-                            ):
-                                update_menu_item(
-                                    item["id"], e_name, e_price, e_cost, e_track, e_stock, e_img
-                                )
-                                st.session_state.editing_item_id = None
-                                st.success(
-                                    translate_text("Item updated successfully!", admin_lang)
-                                )
-                                st.rerun()
-
-                        with col_cancel:
-                            if st.button(
-                                translate_text("Cancel", admin_lang),
-                                key=f"cancel_edit_{item['id']}",
-                            ):
-                                st.session_state.editing_item_id = None
-                                st.rerun()
-                        st.markdown("---")
-
-        # ==========================================
-        # 4. التقرير المالي المتقدم
-        # ==========================================
         with tab4:
-            st.header(tab_a4_text)
-            st.subheader(translate_text("Select Date Range", admin_lang))
-
-            col_d1, col_d2 = st.columns(2)
-            today = datetime.date.today()
-            start_of_month = today.replace(day=1)
-
-            with col_d1:
-                start_date = st.date_input(
-                    translate_text("From Date", admin_lang), value=start_of_month
-                )
-            with col_d2:
-                end_date = st.date_input(
-                    translate_text("To Date", admin_lang), value=today
-                )
-
-            st.markdown("---")
-
+            st.header("Reports & Profits")
             orders = load_data(ORDERS_FILE)
-            menu_items = get_menu()
-
-            price_cost_map = {}
-            for item in menu_items:
-                orig_name = item["name"]
-                trans_name = translate_text(item["name"], admin_lang)
-                p = float(item.get("price", 0.0))
-                c = float(item.get("cost", 0.0))
-
-                price_cost_map[orig_name] = {"price": p, "cost": c}
-                price_cost_map[trans_name] = {"price": p, "cost": c}
-
-            filtered_orders = []
-            for o in orders:
-                order_date_str = o.get("date", str(today))
-                try:
-                    o_date = datetime.datetime.strptime(
-                        order_date_str, "%Y-%m-%d"
-                    ).date()
-                except Exception:
-                    o_date = today
-
-                if start_date <= o_date <= end_date:
-                    filtered_orders.append(o)
-
-            total_revenue = 0.0
-            total_cost = 0.0
-            item_stats = {}
-
-            for o in filtered_orders:
-                for item_name, qty in o.get("items", {}).items():
-                    unit_info = price_cost_map.get(
-                        item_name, {"price": 0.0, "cost": 0.0}
-                    )
-                    u_price = unit_info["price"]
-                    u_cost = unit_info["cost"]
-
-                    sales = u_price * qty
-                    costs = u_cost * qty
-                    profit = sales - costs
-
-                    total_revenue += sales
-                    total_cost += costs
-
-                    if item_name not in item_stats:
-                        item_stats[item_name] = {
-                            "qty": 0,
-                            "sales": 0.0,
-                            "costs": 0.0,
-                            "profit": 0.0,
-                        }
-
-                    item_stats[item_name]["qty"] += qty
-                    item_stats[item_name]["sales"] += sales
-                    item_stats[item_name]["costs"] += costs
-                    item_stats[item_name]["profit"] += profit
-
-            net_profit = total_revenue - total_cost
-
-            m1, m2, m3 = st.columns(3)
-            with m1:
-                st.metric(
-                    translate_text("Total Revenue (Period)", admin_lang),
-                    f"{total_revenue:.2f} AED",
-                )
-            with m2:
-                st.metric(
-                    translate_text("Total Costs (Period)", admin_lang),
-                    f"{total_cost:.2f} AED",
-                )
-            with m3:
-                st.metric(
-                    translate_text("Net Profit (Period)", admin_lang),
-                    f"{net_profit:.2f} AED",
-                )
-
-            st.markdown("---")
-            st.subheader(translate_text("Item-wise Profitability", admin_lang))
-
-            if item_stats:
-                table_data = []
-                for name, data in item_stats.items():
-                    table_data.append({
-                        translate_text("Item Name", admin_lang): name,
-                        translate_text("Qty Sold", admin_lang): data["qty"],
-                        translate_text("Total Sales (AED)", admin_lang): f"{data['sales']:.2f}",
-                        translate_text("Total Cost (AED)", admin_lang): f"{data['costs']:.2f}",
-                        translate_text("Net Profit (AED)", admin_lang): f"{data['profit']:.2f}",
-                    })
-
-                df_items = pd.DataFrame(table_data)
-                st.dataframe(df_items, use_container_width=True)
-            else:
-                st.info(
-                    translate_text(
-                        "No sales registered in the selected date range.", admin_lang
-                    )
-                )
+            total_rev = sum(o.get("total", 0) for o in orders)
+            st.metric("Total Revenue", f"{total_rev:.2f} AED")
 
         # ==========================================
-        # 5. تعديل بيانات التواصل
+        # تبويب الإعدادات الشامل (Settings)
         # ==========================================
         with tab5:
-            st.header(tab_a5_text)
-            contact_data = get_contact_info()
+            st.header("⚙️ General Settings / الإعدادات العامة")
+            
+            set_tab1, set_tab2, set_tab3, set_tab4 = st.tabs([
+                "🏪 Profile",
+                "🖼️ Backgrounds",
+                "📞 Contact Info",
+                "📍 Google Maps",
+            ])
 
-            edit_phone = st.text_input(
-                translate_text("Phone Number", admin_lang),
-                value=contact_data.get("phone", ""),
+            settings_data = get_settings()
+
+            with set_tab1:
+                st.subheader("Restaurant Profile / بروفايل المطعم")
+                res_name = st.text_input("Restaurant Name", value=settings_data.get("restaurant_name", ""))
+                res_desc = st.text_area("Restaurant Description", value=settings_data.get("restaurant_description", ""))
+                if st.button("Save Profile", type="primary"):
+                    settings_data["restaurant_name"] = res_name
+                    settings_data["restaurant_description"] = res_desc
+                    save_data(SETTINGS_FILE, settings_data)
+                    st.success("Profile saved successfully!")
+                    st.rerun()
+
+            with set_tab2:
+                st.subheader("Customize Page Backgrounds / خلفيات الصفحات")
+                st.info("Paste image URLs (Unsplash / Google / Direct Image Link) to change page backgrounds.")
+                
+                bgs = settings_data.get("backgrounds", DEFAULT_SETTINGS["backgrounds"])
+                
+                bg_main = st.text_input("Main Page Background URL", value=bgs.get("main_menu", ""))
+                bg_food = st.text_input("Food Menu Background URL", value=bgs.get("food_menu_page", ""))
+                bg_cart = st.text_input("Shopping Cart Background URL", value=bgs.get("cart_page", ""))
+                bg_res = st.text_input("Reservation Background URL", value=bgs.get("reservation_page", ""))
+                bg_del = st.text_input("Delivery Background URL", value=bgs.get("delivery_page", ""))
+                bg_contact = st.text_input("Contact Us Background URL", value=bgs.get("contact_page", ""))
+
+                if st.button("Save Backgrounds", type="primary"):
+                    settings_data["backgrounds"]["main_menu"] = bg_main
+                    settings_data["backgrounds"]["food_menu_page"] = bg_food
+                    settings_data["backgrounds"]["cart_page"] = bg_cart
+                    settings_data["backgrounds"]["reservation_page"] = bg_res
+                    settings_data["backgrounds"]["delivery_page"] = bg_del
+                    settings_data["backgrounds"]["contact_page"] = bg_contact
+                    save_data(SETTINGS_FILE, settings_data)
+                    st.success("Backgrounds updated successfully!")
+                    st.rerun()
+
+            with set_tab3:
+                st.subheader("Contact Information / بيانات التواصل")
+                edit_phone = st.text_input("Phone Number", value=settings_data.get("phone", ""))
+                edit_address = st.text_input("Address", value=settings_data.get("address", ""))
+                if st.button("Save Contact Info", type="primary"):
+                    settings_data["phone"] = edit_phone
+                    settings_data["address"] = edit_address
+                    save_data(SETTINGS_FILE, settings_data)
+                    st.success("Contact info saved successfully!")
+                    st.rerun()
+
+            with set_tab4:
+                st.subheader("Google Maps Location / موقع الجوجل مابس")
+                edit_maps = st.text_input("Google Maps URL", value=settings_data.get("google_maps_url", ""))
+                if st.button("Save Location URL", type="primary"):
+                    settings_data["google_maps_url"] = edit_maps
+                    save_data(SETTINGS_FILE, settings_data)
+                    st.success("Google Maps URL saved successfully!")
+                    st.rerun()
+
+        # تبويب مولد الباركود
+        with tab6:
+            st.header("📲 Table QR Code Generator")
+            base_app_url = "https://restaurantapp-q9mvwzvmevytzln2zbzryx.streamlit.app"
+            selected_qr_table = st.selectbox("Select Table Number", ALL_TABLES)
+            qr_url = f"{base_app_url}/?table={selected_qr_table}"
+            
+            qr = qrcode.QRCode(version=1, box_size=10, border=4)
+            qr.add_data(qr_url)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+            
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            byte_im = buf.getvalue()
+            
+            st.image(byte_im, caption=f"QR Code for Table #{selected_qr_table}", width=250)
+            st.download_button(
+                label=f"📥 Download QR Code for Table #{selected_qr_table}",
+                data=byte_im,
+                file_name=f"table_{selected_qr_table}_qr.png",
+                mime="image/png",
             )
-            edit_address = st.text_input(
-                translate_text("Address", admin_lang),
-                value=contact_data.get("address", ""),
-            )
-
-            if st.button(
-                translate_text("Save Contact Info", admin_lang), type="primary"
-            ):
-                save_data(
-                    CONTACT_FILE,
-                    {"phone": edit_phone, "address": edit_address},
-                )
-                st.success(
-                    translate_text(
-                        "Contact info updated successfully!", admin_lang
-                    )
-                )
-                st.rerun()
-
-    else:
-        st.sidebar.error(translate_text("Wrong password", admin_lang))
 
 
 # ==========================================
-# 5. صفحات الأقسام والخدمات
+# 5. صفحات الأقسام والخدمات للزبون
 # ==========================================
 elif st.session_state.current_page in [
     "food_menu_page",
@@ -935,7 +622,6 @@ elif st.session_state.current_page in [
 ]:
     lang = st.session_state.app_language
 
-    # زر الرجوع أعلى الشاشة مباشرة لسهولة الاستخدام من الموبايل
     if st.button("⬅️ Back to Main / العودة للرئيسية"):
         st.session_state.current_page = "main_menu"
         update_url_params()
@@ -943,296 +629,109 @@ elif st.session_state.current_page in [
 
     st.write("---")
 
-    # 1. صفحة قائمة الطعام للزبون مع فحص دقيق يتجاوز المخزون
     if st.session_state.current_page == "food_menu_page":
         st.title(f"📜 {translate_text('Food Menu', lang)}")
-        menu_items = get_menu()
-        add_btn_text = translate_text("Add to Cart", lang)
-        currency_text = translate_text("AED", lang)
-        qty_text = translate_text("Qty", lang)
-
-        for item in menu_items:
+        for item in get_menu():
             display_name = translate_text(item["name"], lang)
-            c_img, c1, c2, c3 = st.columns([1.5, 3, 2, 2])
-
-            already_in_cart = st.session_state.cart.get(display_name, 0)
-            track_stock = item.get("track_stock", False)
-            total_stock = item.get("stock", 0) if track_stock else 999
-            available_stock = (
-                max(0, total_stock - already_in_cart) if track_stock else 999
-            )
-
-            is_out_of_stock = track_stock and available_stock <= 0
-
+            c_img, c1, c2 = st.columns([1.5, 4, 2])
             with c_img:
-                img_url = item.get(
-                    "image",
-                    "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300",
-                )
-                st.image(img_url, use_container_width=True)
-
+                st.image(item.get("image"), use_container_width=True)
             with c1:
                 st.subheader(display_name)
-                st.write(f"{item['price']} {currency_text}")
-
-                if track_stock and total_stock <= 0:
-                    st.error(f"🔴 {translate_text('Out of Stock', lang)}")
-
+                st.write(f"{item['price']} AED")
             with c2:
-                qty = st.number_input(
-                    qty_text,
-                    min_value=1,
-                    value=1,
-                    step=1,
-                    key=f"qty_{item['id']}",
-                    disabled=is_out_of_stock,
-                    label_visibility="collapsed",
-                )
-
-                exceeds_stock = track_stock and ((already_in_cart + int(qty)) > total_stock)
-
-                if exceeds_stock:
-                    st.error(
-                        f"⚠️ {translate_text('Exceeds stock! Max available:', lang)}"
-                        f" {available_stock}"
-                    )
-
-            with c3:
-                btn_disabled = is_out_of_stock or exceeds_stock
-
-                if st.button(
-                    add_btn_text, key=f"btn_{item['id']}", disabled=btn_disabled, type="primary"
-                ):
-                    st.session_state.cart[display_name] = already_in_cart + int(qty)
+                qty = st.number_input("Qty", min_value=1, value=1, key=f"qty_{item['id']}")
+                if st.button(translate_text("Add to Cart", lang), key=f"btn_{item['id']}", type="primary"):
+                    st.session_state.cart[display_name] = st.session_state.cart.get(display_name, 0) + int(qty)
                     update_url_params()
-                    st.success(
-                        f"{translate_text('Added', lang)} {display_name}"
-                        f" {translate_text('successfully', lang)}"
-                    )
+                    st.success(f"Added {display_name}")
                     st.rerun()
             st.markdown("---")
 
-    # 2. صفحة سلة المشتريات
     elif st.session_state.current_page == "cart_page":
         st.title(f"🛒 {translate_text('Shopping Cart', lang)}")
-        currency_text = translate_text("AED", lang)
-
         if not st.session_state.cart:
             st.info(translate_text("Your cart is empty", lang))
         else:
             total_price = 0.0
             menu_items = get_menu()
-
-            item_info_map = {}
-            for item in menu_items:
-                disp = translate_text(item["name"], lang)
-                item_info_map[disp] = item
-                item_info_map[item["name"]] = item
-
-            items_to_remove = []
-
-            if st.button(
-                f"🗑️ {translate_text('Clear Cart', lang)}", type="secondary"
-            ):
-                st.session_state.cart = {}
-                update_url_params()
-                st.rerun()
-
-            st.markdown("---")
+            price_map = {translate_text(i["name"], lang): i["price"] for i in menu_items}
+            price_map.update({i["name"]: i["price"] for i in menu_items})
 
             for item_name, quantity in list(st.session_state.cart.items()):
-                item_obj = item_info_map.get(
-                    item_name, {"price": 0.0, "track_stock": False, "stock": 999}
-                )
-                price = item_obj.get("price", 0.0)
-                track_stock = item_obj.get("track_stock", False)
-                total_stock = item_obj.get("stock", 999) if track_stock else 999
+                p = price_map.get(item_name, 0.0)
+                tot = p * quantity
+                total_price += tot
+                st.write(f"• **{item_name}** x{quantity} = {tot:.2f} AED")
 
-                item_total = price * quantity
-                total_price += item_total
-
-                c_info, c_qty, c_del = st.columns([3, 2, 1])
-
-                with c_info:
-                    st.markdown(f"### **{item_name}**")
-                    st.write(
-                        f"{translate_text('Price', lang)}: {price:.1f} {currency_text} |"
-                        f" {translate_text('Total', lang)}: **{item_total:.1f}"
-                        f" {currency_text}**"
-                    )
-
-                with c_qty:
-                    new_qty = st.number_input(
-                        f"{translate_text('Qty', lang)} ({item_name})",
-                        min_value=1,
-                        value=int(quantity),
-                        step=1,
-                        key=f"cart_qty_{item_name}",
-                    )
-
-                    exceeds_cart_stock = track_stock and (int(new_qty) > total_stock)
-                    if exceeds_cart_stock:
-                        st.error(
-                            f"⚠️ {translate_text('Max stock available:', lang)}"
-                            f" {total_stock}"
-                        )
-                    elif new_qty != quantity:
-                        st.session_state.cart[item_name] = int(new_qty)
-                        update_url_params()
-                        st.rerun()
-
-                with c_del:
-                    st.write("<br>", unsafe_allow_html=True)
-                    if st.button("🗑️", key=f"del_cart_{item_name}"):
-                        items_to_remove.append(item_name)
-
-                st.markdown("---")
-
-            if items_to_remove:
-                for itm in items_to_remove:
-                    del st.session_state.cart[itm]
-                update_url_params()
-                st.rerun()
-
-            st.subheader(
-                f"{translate_text('Total', lang)}: {total_price:.1f} {currency_text}"
-            )
+            st.subheader(f"Total: {total_price:.2f} AED")
             st.write("---")
-
-            st.subheader(
-                translate_text("Would you like to dine-in or delivery?", lang)
-            )
-
-            col_dine, col_del = st.columns(2)
-            with col_dine:
-                if st.button(
-                    f"🍽️ {translate_text('Dine-in (Eat in Restaurant)', lang)}",
-                    use_container_width=True,
-                    type="primary",
-                ):
+            c_dine, c_del = st.columns(2)
+            with c_dine:
+                if st.button("🍽️ Dine-in (Eat in Restaurant)", use_container_width=True, type="primary"):
                     st.session_state.current_page = "reservation_page"
                     update_url_params()
                     st.rerun()
-
-            with col_del:
-                if st.button(
-                    f"🛵 {translate_text('Delivery Order', lang)}",
-                    use_container_width=True,
-                    type="primary",
-                ):
+            with c_del:
+                if st.button("🛵 Delivery Order", use_container_width=True, type="primary"):
                     st.session_state.current_page = "delivery_page"
                     update_url_params()
                     st.rerun()
 
-    # 3. صفحة حجز الطاولة
     elif st.session_state.current_page == "reservation_page":
-        st.title(f"🍽️ {translate_text('Dine-in / Table Reservation', lang)}")
-
-        res_name = st.text_input(translate_text("Your Name", lang))
-        res_phone = st.text_input(translate_text("Phone Number", lang))
-
+        st.title(f"🍽️ Table Reservation")
+        res_name = st.text_input("Your Name")
+        res_phone = st.text_input("Phone Number")
         available_tables = get_available_tables()
-        if available_tables:
-            selected_table = st.selectbox(
-                translate_text("Available Tables", lang), options=available_tables
-            )
-        else:
-            st.warning(translate_text("No tables available at the moment", lang))
-            selected_table = None
+        selected_table = st.selectbox("Available Tables", options=available_tables) if available_tables else None
+        res_date = st.date_input("Reservation Date")
+        selected_payment = st.radio("Payment Method", options=PAYMENT_METHODS)
 
-        res_date = st.date_input(translate_text("Reservation Date", lang))
-        res_time = st.time_input(translate_text("Arrival Time", lang))
-
-        selected_payment = st.radio(
-            translate_text("Payment Method", lang),
-            options=[translate_text(p, lang) for p in PAYMENT_METHODS],
-        )
-
-        if st.button(
-            translate_text("Confirm Dine-in Reservation", lang), type="primary"
-        ):
+        if st.button("Confirm Reservation & Order", type="primary"):
             if res_name and res_phone and selected_table:
-                reservations = load_data(RESERVATIONS_FILE)
-                reservations.append({
-                    "name": res_name,
+                orders = load_data(ORDERS_FILE)
+                price_dict = {translate_text(item["name"], lang): item["price"] for item in get_menu()}
+                total_price = sum(price_dict.get(k, 0) * v for k, v in st.session_state.cart.items())
+                order_id = f"ORD-{random.randint(1000, 9999)}"
+
+                new_order = {
+                    "order_id": order_id,
+                    "customer": res_name,
                     "phone": res_phone,
-                    "table_number": selected_table,
-                    "date": str(res_date),
-                    "time": str(res_time),
-                })
-                save_data(RESERVATIONS_FILE, reservations)
+                    "table": selected_table,
+                    "order_type": "Dine-in",
+                    "payment_method": selected_payment,
+                    "items": st.session_state.cart,
+                    "total": total_price,
+                    "date": str(datetime.date.today()),
+                    "status": "Order Received",
+                }
+                orders.append(new_order)
+                save_data(ORDERS_FILE, orders)
+                deduct_stock_for_order(st.session_state.cart)
 
-                if st.session_state.cart:
-                    orders = load_data(ORDERS_FILE)
-                    price_dict = {
-                        translate_text(item["name"], lang): item["price"]
-                        for item in get_menu()
-                    }
-                    total_price = sum(
-                        price_dict.get(k, 0) * v for k, v in st.session_state.cart.items()
-                    )
-                    order_id = f"ORD-{random.randint(1000, 9999)}"
-
-                    orders.append({
-                        "order_id": order_id,
-                        "customer": res_name,
-                        "phone": res_phone,
-                        "table": selected_table,
-                        "order_type": "Dine-in",
-                        "payment_method": selected_payment,
-                        "items": st.session_state.cart,
-                        "total": total_price,
-                        "date": str(datetime.date.today()),
-                        "status": "Order Received",
-                    })
-                    save_data(ORDERS_FILE, orders)
-
-                    deduct_stock_for_order(st.session_state.cart)
-
-                    st.session_state.cart = {}
-                    st.session_state.last_order_id = order_id
-
-                st.success(
-                    translate_text("Reservation & Order submitted successfully!", lang)
-                )
+                st.session_state.cart = {}
+                st.session_state.last_order_id = order_id
+                st.success("Submitted successfully!")
                 st.session_state.current_page = "track_orders_page"
                 update_url_params()
                 st.rerun()
-            else:
-                st.warning(
-                    translate_text("Please fill in your name, phone and table", lang)
-                )
 
-    # 4. صفحة الدليفري
     elif st.session_state.current_page == "delivery_page":
-        st.title(f"🛵 {translate_text('Delivery Details', lang)}")
+        st.title(f"🛵 Delivery Details")
+        del_name = st.text_input("Your Name")
+        del_address = st.text_area("Delivery Address")
+        del_phone = st.text_input("Phone Number")
+        selected_payment = st.radio("Payment Method", options=PAYMENT_METHODS)
 
-        del_name = st.text_input(translate_text("Your Name", lang))
-        del_address = st.text_area(
-            translate_text("Delivery Location/Address", lang)
-        )
-        del_phone = st.text_input(translate_text("Phone Number", lang))
-
-        selected_payment = st.radio(
-            translate_text("Payment Method", lang),
-            options=[translate_text(p, lang) for p in PAYMENT_METHODS],
-        )
-
-        if st.button(
-            translate_text("Confirm Delivery Order", lang), type="primary"
-        ):
+        if st.button("Confirm Delivery Order", type="primary"):
             if del_name and del_address and del_phone:
                 orders = load_data(ORDERS_FILE)
-                price_dict = {
-                    translate_text(item["name"], lang): item["price"]
-                    for item in get_menu()
-                }
-                total_price = sum(
-                    price_dict.get(k, 0) * v for k, v in st.session_state.cart.items()
-                )
+                price_dict = {translate_text(item["name"], lang): item["price"] for item in get_menu()}
+                total_price = sum(price_dict.get(k, 0) * v for k, v in st.session_state.cart.items())
                 order_id = f"ORD-{random.randint(1000, 9999)}"
 
-                orders.append({
+                new_order = {
                     "order_id": order_id,
                     "customer": del_name,
                     "address": del_address,
@@ -1243,84 +742,33 @@ elif st.session_state.current_page in [
                     "total": total_price,
                     "date": str(datetime.date.today()),
                     "status": "Order Received",
-                })
+                }
+                orders.append(new_order)
                 save_data(ORDERS_FILE, orders)
-
                 deduct_stock_for_order(st.session_state.cart)
 
                 st.session_state.cart = {}
                 st.session_state.last_order_id = order_id
-
-                st.success(
-                    translate_text("Delivery order submitted successfully!", lang)
-                )
+                st.success("Submitted successfully!")
                 st.session_state.current_page = "track_orders_page"
                 update_url_params()
                 st.rerun()
-            else:
-                st.warning(translate_text("Please fill in all details", lang))
 
-    # 5. صفحة تتبع الطلبيات
     elif st.session_state.current_page == "track_orders_page":
-        st.title(f"📍 {translate_text('Track Orders', lang)}")
-
+        st.title(f"📍 Track Order & Receipt")
         orders = load_data(ORDERS_FILE)
-        if not orders:
-            st.info(translate_text("No active orders to track currently.", lang))
-        else:
+        if orders:
             last_id = st.session_state.last_order_id
-            current_order = None
-            if last_id:
-                for o in orders:
-                    if o.get("order_id") == last_id:
-                        current_order = o
-                        break
+            current_order = next((o for o in orders if o.get("order_id") == last_id), orders[-1])
+            
+            st.subheader(f"Status: {current_order.get('status')}")
+            st.markdown(generate_receipt_html(current_order), unsafe_allow_html=True)
 
-            if not current_order:
-                current_order = orders[-1]
-
-            status = current_order.get("status", "Order Received")
-
-            st.subheader(
-                f"{translate_text('Order Number', lang)}: {current_order.get('order_id')}"
-            )
-            st.write(
-                f"**{translate_text('Customer', lang)}:**"
-                f" {current_order.get('customer')} |"
-                f" **{translate_text('Payment Method', lang)}:**"
-                f" {current_order.get('payment_method', '-')} |"
-                f" **{translate_text('Total', lang)}:** {current_order.get('total')}"
-                f" {translate_text('AED', lang)}"
-            )
-
-            stage_index = (
-                ORDER_STAGES.index(status) if status in ORDER_STAGES else 0
-            )
-            progress_value = (stage_index + 1) / len(ORDER_STAGES)
-            st.progress(progress_value)
-
-            cols = st.columns(4)
-            stage_icons = ["📥", "🍳", "🛵", "✅"]
-
-            for idx, stage_name in enumerate(ORDER_STAGES):
-                with cols[idx]:
-                    translated_stage = translate_text(stage_name, lang)
-                    if idx <= stage_index:
-                        st.success(f"{stage_icons[idx]} **{translated_stage}**")
-                    else:
-                        st.info(f"⚪ {translated_stage}")
-
-            st.markdown("---")
-            st.subheader(translate_text("Order Details", lang))
-            for item_name, qty in current_order.get("items", {}).items():
-                st.write(f"- {item_name} × {qty}")
-
-            time.sleep(5)
-            st.rerun()
-
-    # 6. صفحة تواصل معنا الديناميكية
     elif st.session_state.current_page == "contact_page":
-        st.title(f"📞 {translate_text('Contact Us', lang)}")
-        contact_info = get_contact_info()
-        st.write(f"**{translate_text('Phone', lang)}:** {contact_info.get('phone', '')}")
-        st.write(f"**{translate_text('Address', lang)}:** {contact_info.get('address', '')}")
+        st.title(f"📞 Contact Us")
+        st.write(f"**Phone:** {app_settings.get('phone', '')}")
+        st.write(f"**Address:** {app_settings.get('address', '')}")
+        
+        maps_url = app_settings.get("google_maps_url", "")
+        if maps_url:
+            st.markdown(f"📍 [**Open Location in Google Maps**]({maps_url})", unsafe_allow_html=True)
