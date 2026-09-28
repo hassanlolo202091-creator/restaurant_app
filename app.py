@@ -233,36 +233,30 @@ st.markdown(
         transform: translateY(-2px) scale(1.02) !important;
     }}
 
+    /* الفاتورة الحرارية الأنيقة والنظيفة */
     .receipt-box {{
         background-color: #FFFFFF !important;
         color: #000000 !important;
         padding: 20px;
-        border-radius: 10px;
+        border-radius: 8px;
         width: 100%;
-        max-width: 400px;
+        max-width: 380px;
         margin: 15px auto;
         font-family: 'Courier New', Courier, monospace;
-        box-shadow: 0 8px 25px rgba(0,0,0,0.5);
-        border: 1px solid #ccc;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        border: 1px solid #ddd;
     }}
-    .receipt-box * {{ 
-        color: #000000 !important; 
-    }}
+    .receipt-box * {{ color: #000000 !important; }}
     .receipt-header {{
         text-align: center;
         border-bottom: 2px dashed #000;
         padding-bottom: 10px;
-        margin-bottom: 12px;
+        margin-bottom: 10px;
     }}
-    .receipt-item-row {{
-        display: flex;
-        justify-content: space-between;
-        margin: 6px 0;
-        font-size: 15px;
-    }}
+    .receipt-row {{ display: flex; justify-content: space-between; margin: 5px 0; }}
     .receipt-footer {{
         border-top: 2px dashed #000;
-        margin-top: 15px;
+        margin-top: 10px;
         padding-top: 10px;
         text-align: center;
     }}
@@ -285,39 +279,37 @@ def translate_text(text, target_lang):
 
 def generate_receipt_html(order):
     settings = get_settings()
-    
-    items_list_html = ""
+    items_html = ""
     items_dict = order.get("items", {})
     if isinstance(items_dict, dict):
         for name, qty in items_dict.items():
-            items_list_html += f'<div class="receipt-item-row"><span>• {name}</span><span>x{qty}</span></div>'
+            items_html += f'<div class="receipt-row"><span>{name}</span><span>x{qty}</span></div>'
 
-    table_info = f"<p style='margin: 4px 0;'><strong>Table:</strong> #{order.get('table')}</p>" if order.get("table") else ""
-    address_info = f"<p style='margin: 4px 0;'><strong>Address:</strong> {order.get('address')}</p>" if order.get("address") else ""
+    table_info = f"<p style='margin:2px 0;'><strong>Table:</strong> #{order.get('table')}</p>" if order.get("table") else ""
+    address_info = f"<p style='margin:2px 0;'><strong>Address:</strong> {order.get('address')}</p>" if order.get("address") else ""
 
-    html_code = f"""
+    return f"""
     <div class="receipt-box">
         <div class="receipt-header">
-            <h3 style="margin: 0 0 5px 0;">🧾 {settings.get('restaurant_name', 'RESTAURANT RECEIPT')}</h3>
-            <p style="margin: 2px 0;">Tel: {settings.get('phone', '')}</p>
-            <p style="margin: 2px 0;">Date: {order.get('date', '')}</p>
-            <p style="margin: 4px 0; font-size: 16px;"><strong>Order ID: {order.get('order_id')}</strong></p>
+            <h3 style="margin:0 0 5px 0;">🧾 {settings.get('restaurant_name', 'RESTAURANT RECEIPT')}</h3>
+            <p style="margin:2px 0;">Tel: {settings.get('phone', '')}</p>
+            <p style="margin:2px 0;">Date: {order.get('date', '')}</p>
+            <p style="margin:4px 0;"><strong>Order ID: {order.get('order_id')}</strong></p>
         </div>
-        <p style="margin: 4px 0;"><strong>Customer:</strong> {order.get('customer', '')}</p>
-        <p style="margin: 4px 0;"><strong>Phone:</strong> {order.get('phone', '')}</p>
-        <p style="margin: 4px 0;"><strong>Type:</strong> {order.get('order_type', '')} | <strong>Pay:</strong> {order.get('payment_method', '')}</p>
+        <p style="margin:2px 0;"><strong>Customer:</strong> {order.get('customer', '')}</p>
+        <p style="margin:2px 0;"><strong>Phone:</strong> {order.get('phone', '')}</p>
+        <p style="margin:2px 0;"><strong>Type:</strong> {order.get('order_type', '')} | <strong>Pay:</strong> {order.get('payment_method', '')}</p>
         {table_info}
         {address_info}
-        <div style="border-top: 1px dashed #000; margin: 10px 0;"></div>
-        <h4 style="margin: 5px 0 10px 0; text-align: left;">ITEMS:</h4>
-        {items_list_html}
+        <hr style="border-top: 1px dashed #000; margin: 10px 0;">
+        <h4 style="margin: 5px 0 10px 0;">ITEMS:</h4>
+        {items_html}
         <div class="receipt-footer">
             <h3 style="margin: 5px 0;">TOTAL: {float(order.get('total', 0)):.2f} AED</h3>
             <p style="margin: 5px 0 0 0;">Thank you for your visit!</p>
         </div>
     </div>
     """
-    return html_code
 
 
 def update_url_params():
@@ -523,7 +515,7 @@ elif st.session_state.current_page == "admin_page":
             st.metric("Total Revenue", f"{total_rev:.2f} AED")
 
         with tab5:
-            st.header("General Settings / الإعدادات العامة")
+            st.header("⚙️ General Settings / الإعدادات العامة")
             
             set_tab1, set_tab2, set_tab3, set_tab4 = st.tabs([
                 "🏪 Profile",
@@ -665,7 +657,6 @@ elif st.session_state.current_page in [
                     st.rerun()
             st.markdown("---")
 
-        # الانتظار لمدة 1.5 ثانية ثم إعادة الزر لشكله الطبيعي
         if st.session_state.just_added_id is not None:
             time.sleep(1.5)
             st.session_state.just_added_id = None
@@ -786,7 +777,23 @@ elif st.session_state.current_page in [
             last_id = st.session_state.last_order_id
             current_order = next((o for o in orders if o.get("order_id") == last_id), orders[-1])
             
-            st.subheader(f"Current Status: {current_order.get('status')}")
+            # العرض التفاعلي الأصلي لمراحل الأوردر الأربعة
+            current_status = current_order.get("status", "Order Received")
+            st.subheader(f"Current Status: {current_status}")
+            
+            stage_idx = ORDER_STAGES.index(current_status) if current_status in ORDER_STAGES else 0
+            progress_val = (stage_idx + 1) / len(ORDER_STAGES)
+            st.progress(progress_val)
+            
+            cols_stages = st.columns(len(ORDER_STAGES))
+            for i, stage in enumerate(ORDER_STAGES):
+                with cols_stages[i]:
+                    if i <= stage_idx:
+                        st.markdown(f"✅ **{stage}**")
+                    else:
+                        st.markdown(f"⚪ {stage}")
+            
+            st.markdown("---")
             st.markdown(generate_receipt_html(current_order), unsafe_allow_html=True)
         else:
             st.info("No active orders to track.")
