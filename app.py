@@ -206,7 +206,7 @@ st.markdown(
         border-radius: 8px !important;
     }}
 
-    /* إصلاح لون تاريخ الإدخال والتقويم بالكامل لتجاوز القواعد العامة */
+    /* إجبار إظهار جميع نصوص وتنبيهات محدد التاريخ باللون الأسود */
     div[data-testid="stDateInput"] * {{
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
@@ -219,6 +219,23 @@ st.markdown(
     }}
 
     div[data-baseweb="popover"] * {{
+        color: #000000 !important;
+    }}
+
+    /* إجبار نصوص وإرشادات زر تحميل الصور (File Uploader) على اللون الأسود الواضح */
+    div[data-testid="stFileUploader"] * {{
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+    }}
+    div[data-testid="stFileUploader"] section {{
+        background-color: #FFFFFF !important;
+        border-radius: 8px !important;
+    }}
+    div[data-testid="stFileUploader"] button {{
+        background-color: #f0f2f6 !important;
+        border: 1px solid #ccc !important;
+    }}
+    div[data-testid="stFileUploader"] button * {{
         color: #000000 !important;
     }}
 
@@ -524,13 +541,11 @@ elif st.session_state.current_page == "admin_page":
             track_stock_opt = st.checkbox("Enable inventory tracking?")
             stock_qty_input = st.number_input("Stock Quantity", min_value=0, value=10) if track_stock_opt else 0
             
-            # خيارات إضافة صورة المنتج (رابط أو رفع ملف)
             uploaded_file = st.file_uploader("Upload Item Image / تحميل صورة للمنتج من الجهاز", type=["png", "jpg", "jpeg", "webp"])
             final_image_data = st.text_input("Or Image URL / أو ضع رابط الصورة مباشر")
             
             if st.button("Add Item"):
                 if new_name_input:
-                    # تحويل الصورة المرفوعة إلى Base64 إن وجدت
                     if uploaded_file is not None:
                         bytes_data = uploaded_file.getvalue()
                         base64_str = base64.b64encode(bytes_data).decode()
