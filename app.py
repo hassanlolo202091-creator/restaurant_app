@@ -665,6 +665,12 @@ elif st.session_state.current_page in [
                     st.rerun()
             st.markdown("---")
 
+        # الانتظار لمدة 1.5 ثانية ثم إعادة الزر لشكله الطبيعي
+        if st.session_state.just_added_id is not None:
+            time.sleep(1.5)
+            st.session_state.just_added_id = None
+            st.rerun()
+
     elif st.session_state.current_page == "cart_page":
         st.title(f"🛒 {translate_text('Shopping Cart', lang)}")
         if not st.session_state.cart:
