@@ -233,7 +233,7 @@ st.markdown(
         transform: translateY(-2px) scale(1.02) !important;
     }}
 
-    /* الفاتورة الحرارية الأنيقة والنظيفة */
+    /* الفاتورة الحرارية الأنيقة */
     .receipt-box {{
         background-color: #FFFFFF !important;
         color: #000000 !important;
@@ -253,7 +253,11 @@ st.markdown(
         padding-bottom: 10px;
         margin-bottom: 10px;
     }}
-    .receipt-row {{ display: flex; justify-content: space-between; margin: 5px 0; }}
+    .receipt-row {{ 
+        display: flex; 
+        justify-content: space-between; 
+        margin: 5px 0; 
+    }}
     .receipt-footer {{
         border-top: 2px dashed #000;
         margin-top: 10px;
@@ -279,37 +283,51 @@ def translate_text(text, target_lang):
 
 def generate_receipt_html(order):
     settings = get_settings()
-    items_html = ""
+    
+    items_lines = []
     items_dict = order.get("items", {})
     if isinstance(items_dict, dict):
         for name, qty in items_dict.items():
-            items_html += f'<div class="receipt-row"><span>{name}</span><span>x{qty}</span></div>'
+            items_lines.append(f'<div class="receipt-row"><span>{name}</span><span>x{qty}</span></div>')
+    
+    items_html = "".join(items_lines)
 
-    table_info = f"<p style='margin:2px 0;'><strong>Table:</strong> #{order.get('table')}</p>" if order.get("table") else ""
-    address_info = f"<p style='margin:2px 0;'><strong>Address:</strong> {order.get('address')}</p>" if order.get("address") else ""
+    table_str = f'<p style="margin:2px 0;"><strong>Table:</strong> #{order.get("table")}</p>' if order.get("table") else ""
+    address_str = f'<p style="margin:2px 0;"><strong>Address:</strong> {order.get("address")}</p>' if order.get("address") else ""
 
-    return f"""
-    <div class="receipt-box">
-        <div class="receipt-header">
-            <h3 style="margin:0 0 5px 0;">🧾 {settings.get('restaurant_name', 'RESTAURANT RECEIPT')}</h3>
-            <p style="margin:2px 0;">Tel: {settings.get('phone', '')}</p>
-            <p style="margin:2px 0;">Date: {order.get('date', '')}</p>
-            <p style="margin:4px 0;"><strong>Order ID: {order.get('order_id')}</strong></p>
-        </div>
-        <p style="margin:2px 0;"><strong>Customer:</strong> {order.get('customer', '')}</p>
-        <p style="margin:2px 0;"><strong>Phone:</strong> {order.get('phone', '')}</p>
-        <p style="margin:2px 0;"><strong>Type:</strong> {order.get('order_type', '')} | <strong>Pay:</strong> {order.get('payment_method', '')}</p>
-        {table_info}
-        {address_info}
-        <hr style="border-top: 1px dashed #000; margin: 10px 0;">
-        <h4 style="margin: 5px 0 10px 0;">ITEMS:</h4>
-        {items_html}
-        <div class="receipt-footer">
-            <h3 style="margin: 5px 0;">TOTAL: {float(order.get('total', 0)):.2f} AED</h3>
-            <p style="margin: 5px 0 0 0;">Thank you for your visit!</p>
-        </div>
-    </div>
-    """
+    res_name = settings.get("restaurant_name", "RESTAURANT RECEIPT")
+    phone = settings.get("phone", "")
+    date_val = order.get("date", "")
+    order_id = order.get("order_id", "")
+    customer = order.get("customer", "")
+    cust_phone = order.get("phone", "")
+    order_type = order.get("order_type", "")
+    pay_method = order.get("payment_method", "")
+    tot_val = float(order.get("total", 0))
+
+    receipt = (
+        '<div class="receipt-box">'
+        '<div class="receipt-header">'
+        f'<h3 style="margin:0 0 5px 0;">🧾 {res_name}</h3>'
+        f'<p style="margin:2px 0;">Tel: {phone}</p>'
+        f'<p style="margin:2px 0;">Date: {date_val}</p>'
+        f'<p style="margin:4px 0;"><strong>Order ID: {order_id}</strong></p>'
+        '</div>'
+        f'<p style="margin:2px 0;"><strong>Customer:</strong> {customer}</p>'
+        f'<p style="margin:2px 0;"><strong>Phone:</strong> {cust_phone}</p>'
+        f'<p style="margin:2px 0;"><strong>Type:</strong> {order_type} | <strong>Pay:</strong> {pay_method}</p>'
+        f'{table_str}'
+        f'{address_str}'
+        '<hr style="border-top: 1px dashed #000; margin: 10px 0;">'
+        '<h4 style="margin: 5px 0 10px 0;">ITEMS:</h4>'
+        f'{items_html}'
+        '<div class="receipt-footer">'
+        f'<h3 style="margin: 5px 0;">TOTAL: {tot_val:.2f} AED</h3>'
+        '<p style="margin: 5px 0 0 0;">Thank you for your visit!</p>'
+        '</div>'
+        '</div>'
+    )
+    return receipt
 
 
 def update_url_params():
