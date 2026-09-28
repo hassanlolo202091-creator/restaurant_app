@@ -637,7 +637,7 @@ elif st.session_state.current_page in [
 
     st.write("---")
 
-    elif st.session_state.current_page == "food_menu_page":
+    if st.session_state.current_page == "food_menu_page":
         st.title(f"📜 {translate_text('Food Menu', lang)}")
         
         if "just_added_id" not in st.session_state:
@@ -654,7 +654,6 @@ elif st.session_state.current_page in [
             with c2:
                 qty = st.number_input("Qty", min_value=1, value=1, key=f"qty_{item['id']}")
                 
-                # تغيير اسم ولون الزرار تفاعلياً للصنف المضاف
                 is_just_added = (st.session_state.just_added_id == item["id"])
                 btn_label = "✅ Added! / تمت الإضافة" if is_just_added else translate_text("Add to Cart", lang)
                 btn_type = "secondary" if is_just_added else "primary"
