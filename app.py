@@ -233,29 +233,37 @@ st.markdown(
         transform: translateY(-2px) scale(1.02) !important;
     }}
 
+    /* تصميم الفاتورة الحرارية المحسن والمحمي من أخطاء التنسيق */
     .receipt-box {{
         background-color: #FFFFFF !important;
         color: #000000 !important;
         padding: 20px;
-        border-radius: 8px;
+        border-radius: 10px;
         width: 100%;
-        max-width: 380px;
+        max-width: 400px;
         margin: 15px auto;
         font-family: 'Courier New', Courier, monospace;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-        border: 1px solid #ddd;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+        border: 1px solid #ccc;
     }}
-    .receipt-box * {{ color: #000000 !important; }}
+    .receipt-box * {{ 
+        color: #000000 !important; 
+    }}
     .receipt-header {{
         text-align: center;
         border-bottom: 2px dashed #000;
         padding-bottom: 10px;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
     }}
-    .receipt-row {{ display: flex; justify-content: space-between; margin: 5px 0; }}
+    .receipt-item-row {{
+        display: flex;
+        justify-content: space-between;
+        margin: 6px 0;
+        font-size: 15px;
+    }}
     .receipt-footer {{
         border-top: 2px dashed #000;
-        margin-top: 10px;
+        margin-top: 15px;
         padding-top: 10px;
         text-align: center;
     }}
@@ -278,35 +286,40 @@ def translate_text(text, target_lang):
 
 def generate_receipt_html(order):
     settings = get_settings()
-    items_html = ""
-    for name, qty in order.get("items", {}).items():
-        items_html += f'<div class="receipt-row"><span>{name} x{qty}</span></div>'
     
-    table_info = f"<p><strong>Table:</strong> #{order.get('table')}</p>" if "table" in order else ""
-    address_info = f"<p><strong>Address:</strong> {order.get('address')}</p>" if "address" in order else ""
+    # بناء عناصر المنيو في الفاتورة بنظافة
+    items_list_html = ""
+    items_dict = order.get("items", {})
+    if isinstance(items_dict, dict):
+        for name, qty in items_dict.items():
+            items_list_html += f'<div class="receipt-item-row"><span>• {name}</span><span>x{qty}</span></div>'
 
-    return f"""
+    table_info = f"<p style='margin: 4px 0;'><strong>Table:</strong> #{order.get('table')}</p>" if order.get("table") else ""
+    address_info = f"<p style='margin: 4px 0;'><strong>Address:</strong> {order.get('address')}</p>" if order.get("address") else ""
+
+    html_code = f"""
     <div class="receipt-box">
         <div class="receipt-header">
-            <h3>🧾 {settings.get('restaurant_name', 'RESTAURANT RECEIPT')}</h3>
-            <p>Tel: {settings.get('phone', '')}</p>
-            <p>Date: {order.get('date', '')}</p>
-            <p><strong>Order ID: {order.get('order_id')}</strong></p>
+            <h3 style="margin: 0 0 5px 0;">🧾 {settings.get('restaurant_name', 'RESTAURANT RECEIPT')}</h3>
+            <p style="margin: 2px 0;">Tel: {settings.get('phone', '')}</p>
+            <p style="margin: 2px 0;">Date: {order.get('date', '')}</p>
+            <p style="margin: 4px 0; font-size: 16px;"><strong>Order ID: {order.get('order_id')}</strong></p>
         </div>
-        <p><strong>Customer:</strong> {order.get('customer')}</p>
-        <p><strong>Phone:</strong> {order.get('phone')}</p>
-        <p><strong>Type:</strong> {order.get('order_type')} | <strong>Pay:</strong> {order.get('payment_method')}</p>
+        <p style="margin: 4px 0;"><strong>Customer:</strong> {order.get('customer', '')}</p>
+        <p style="margin: 4px 0;"><strong>Phone:</strong> {order.get('phone', '')}</p>
+        <p style="margin: 4px 0;"><strong>Type:</strong> {order.get('order_type', '')} | <strong>Pay:</strong> {order.get('payment_method', '')}</p>
         {table_info}
         {address_info}
-        <hr style="border-top: 1px dashed #000;">
-        <h4 style="margin:5px 0;">ITEMS:</h4>
-        {items_html}
+        <div style="border-top: 1px dashed #000; margin: 10px 0;"></div>
+        <h4 style="margin: 5px 0 10px 0; text-align: left;">ITEMS:</h4>
+        {items_list_html}
         <div class="receipt-footer">
-            <h3>TOTAL: {order.get('total'):.2f} AED</h3>
-            <p>Thank you for your visit!</p>
+            <h3 style="margin: 5px 0;">TOTAL: {float(order.get('total', 0)):.2f} AED</h3>
+            <p style="margin: 5px 0 0 0;">Thank you for your visit!</p>
         </div>
     </div>
     """
+    return html_code
 
 
 def update_url_params():
@@ -641,7 +654,10 @@ elif st.session_state.current_page in [
                 if st.button(translate_text("Add to Cart", lang), key=f"btn_{item['id']}", type="primary"):
                     st.session_state.cart[display_name] = st.session_state.cart.get(display_name, 0) + int(qty)
                     update_url_params()
-                    st.success(f"Added {display_name}")
+                    
+                    # إشعار نجاح فوري للزبون
+                    st.toast(f"✅ Added {display_name} (x{qty}) to cart!")
+                    st.success(f"Added {display_name} to cart!")
                     st.rerun()
             st.markdown("---")
 
@@ -709,10 +725,11 @@ elif st.session_state.current_page in [
 
                 st.session_state.cart = {}
                 st.session_state.last_order_id = order_id
-                st.success("Submitted successfully!")
                 st.session_state.current_page = "track_orders_page"
                 update_url_params()
                 st.rerun()
+            else:
+                st.warning("Please fill in all details (Name, Phone, Table)!")
 
     elif st.session_state.current_page == "delivery_page":
         st.title(f"🛵 Delivery Details")
@@ -744,12 +761,14 @@ elif st.session_state.current_page in [
                 save_data(ORDERS_FILE, orders)
                 deduct_stock_for_order(st.session_state.cart)
 
+                # إفراغ السلة وتحويل الصفحة المباشر لـ Track Order
                 st.session_state.cart = {}
                 st.session_state.last_order_id = order_id
-                st.success("Submitted successfully!")
                 st.session_state.current_page = "track_orders_page"
                 update_url_params()
                 st.rerun()
+            else:
+                st.warning("Please fill in all details (Name, Address, Phone)!")
 
     elif st.session_state.current_page == "track_orders_page":
         st.title(f"📍 Track Order & Receipt")
@@ -758,8 +777,11 @@ elif st.session_state.current_page in [
             last_id = st.session_state.last_order_id
             current_order = next((o for o in orders if o.get("order_id") == last_id), orders[-1])
             
-            st.subheader(f"Status: {current_order.get('status')}")
+            st.success("🎉 Order submitted successfully!")
+            st.subheader(f"Current Status: {current_order.get('status')}")
             st.markdown(generate_receipt_html(current_order), unsafe_allow_html=True)
+        else:
+            st.info("No active orders to track.")
 
     elif st.session_state.current_page == "contact_page":
         st.title(f"📞 Contact Us")
