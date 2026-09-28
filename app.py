@@ -206,13 +206,23 @@ st.markdown(
         border-radius: 8px !important;
     }}
 
-    /* تحسين إجبار لون التاريخ باللون الأسود الداكن والقوي */
-    div[data-testid="stDateInput"] input, 
-    div[data-baseweb="input"] input, 
-    div[data-baseweb="base-input"] input {{
+    /* حل الشفافية وإظهار نصوص حقول التاريخ بالأسود الداكن */
+    div[data-testid="stDateInput"] input {{
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
+        opacity: 1 !important;
         font-weight: bold !important;
+        background-color: #FFFFFF !important;
+    }}
+
+    div[data-testid="stDateInput"] div[data-baseweb="input"] {{
+        background-color: #FFFFFF !important;
+        border-radius: 8px !important;
+    }}
+
+    div[data-testid="stDateInput"] svg {{
+        fill: #000000 !important;
+        color: #000000 !important;
     }}
 
     [data-testid="stSidebar"] {{
