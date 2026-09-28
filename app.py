@@ -5,6 +5,7 @@ import json
 import os
 import random
 import time
+import urllib.parse
 import pandas as pd
 import streamlit as st
 from translate import Translator
@@ -84,7 +85,11 @@ DEFAULT_SETTINGS = {
 }
 
 ALL_TABLES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-ORDER_STAGES = ["Order Received", "Preparing", "Out for Delivery", "Delivered"]
+
+# مراحل التتبع حسب نوع الطلب
+DELIVERY_STAGES = ["Order Received", "Preparing", "Out for Delivery", "Delivered"]
+DINEIN_STAGES = ["Order Received", "Table Reserved", "Served"]
+
 PAYMENT_METHODS = ["Cash on Delivery", "Card on Delivery", "Online Payment"]
 
 
@@ -121,9 +126,15 @@ def get_settings():
 
 
 def get_available_tables():
+    orders = load_data(ORDERS_FILE)
     reservations = load_data(RESERVATIONS_FILE)
+    
+    # حصر الطاولات المحجوزة حالياً من الأوردرات النشطة أوReservations
+    busy_tables = [o.get("table") for o in orders if o.get("order_type") == "Dine-in" and o.get("status") != "Served" and o.get("table")]
     reserved_tables = [r.get("table_number") for r in reservations if "table_number" in r]
-    return [t for t in ALL_TABLES if t not in reserved_tables]
+    
+    occupied = set(busy_tables + reserved_tables)
+    return [t for t in ALL_TABLES if t not in occupied]
 
 
 def add_menu_item(name_en, price, cost, track_stock, stock_qty, image_data=""):
@@ -323,6 +334,8 @@ def generate_receipt_html(order):
     items_html = "".join(items_lines)
 
     table_str = f'<p style="margin:2px 0;"><strong>Table:</strong> #{order.get("table")}</p>' if order.get("table") else ""
+    time_str = f'<p style="margin:2px 0;"><strong>Time:</strong> {order.get("time")}</p>' if order.get("time") else ""
+    email_str = f'<p style="margin:2px 0;"><strong>Email:</strong> {order.get("email")}</p>' if order.get("email") else ""
     address_str = f'<p style="margin:2px 0;"><strong>Address:</strong> {order.get("address")}</p>' if order.get("address") else ""
 
     res_name = settings.get("restaurant_name", "RESTAURANT RECEIPT")
@@ -345,8 +358,10 @@ def generate_receipt_html(order):
         '</div>'
         f'<p style="margin:2px 0;"><strong>Customer:</strong> {customer}</p>'
         f'<p style="margin:2px 0;"><strong>Phone:</strong> {cust_phone}</p>'
+        f'{email_str}'
         f'<p style="margin:2px 0;"><strong>Type:</strong> {order_type} | <strong>Pay:</strong> {pay_method}</p>'
         f'{table_str}'
+        f'{time_str}'
         f'{address_str}'
         '<hr style="border-top: 1px dashed #000; margin: 10px 0;">'
         '<h4 style="margin: 5px 0 10px 0;">ITEMS:</h4>'
@@ -494,14 +509,16 @@ elif st.session_state.current_page == "admin_page":
             if orders:
                 for idx, o in enumerate(reversed(orders), 1):
                     order_id = o.get("order_id", f"#{idx}")
+                    order_type = o.get("order_type", "Delivery")
+                    stages = DINEIN_STAGES if order_type == "Dine-in" else DELIVERY_STAGES
                     current_status = o.get("status", "Order Received")
 
-                    with st.expander(f"Order {order_id} - {o.get('customer')} | Total: {o.get('total')} AED | Status: {current_status}"):
+                    with st.expander(f"Order {order_id} ({order_type}) - {o.get('customer')} | Total: {o.get('total')} AED | Status: {current_status}"):
                         st.markdown(generate_receipt_html(o), unsafe_allow_html=True)
                         new_status = st.selectbox(
                             "Select Status",
-                            options=ORDER_STAGES,
-                            index=ORDER_STAGES.index(current_status) if current_status in ORDER_STAGES else 0,
+                            options=stages,
+                            index=stages.index(current_status) if current_status in stages else 0,
                             key=f"status_select_{order_id}",
                         )
                         if st.button("Save Status", key=f"save_status_{order_id}"):
@@ -821,47 +838,73 @@ elif st.session_state.current_page in [
                     st.rerun()
 
     elif st.session_state.current_page == "reservation_page":
-        st.title(f"🍽️ Table Reservation")
-        res_name = st.text_input("Your Name")
-        res_phone = st.text_input("Phone Number")
+        st.title(f"🍽️ Dine-in & Table Reservation / حجز داخل المطعم")
+        res_name = st.text_input("Your Name / الاسم")
+        res_phone = st.text_input("Phone Number / رقم الهاتف")
+        res_email = st.text_input("Email / البريد الإلكتروني (لإرسال التنبيه قبل الحضور بساعة)")
+        
         available_tables = get_available_tables()
-        selected_table = st.selectbox("Available Tables", options=available_tables) if available_tables else None
-        res_date = st.date_input("Reservation Date")
-        selected_payment = st.radio("Payment Method", options=PAYMENT_METHODS)
+        if available_tables:
+            selected_table = st.selectbox("Available Tables Only / التربيزات الفاضية المتاحة فقط", options=available_tables)
+        else:
+            selected_table = None
+            st.error("جميع الطاولات محجوزة حالياً / All tables are currently reserved!")
 
-        if st.button("Confirm Reservation & Order", type="primary"):
+        col_time1, col_time2 = st.columns(2)
+        with col_time1:
+            res_date = st.date_input("Reservation Date / تاريخ الحضور")
+        with col_time2:
+            res_time = st.time_input("Expected Arrival Time / وقت الحضور المتوقع", value=datetime.time(19, 0))
+
+        selected_payment = st.radio("Payment Method / طريقة الدفع", options=PAYMENT_METHODS)
+
+        if st.button("Confirm Table Reservation & Order / تأكيد الحجز والطلب", type="primary"):
             if res_name and res_phone and selected_table:
                 orders = load_data(ORDERS_FILE)
                 price_dict = {translate_text(item["name"], lang): item["price"] for item in get_menu()}
                 total_price = sum(price_dict.get(k, 0) * v for k, v in st.session_state.cart.items())
                 order_id = f"ORD-{random.randint(1000, 9999)}"
 
+                time_formatted = res_time.strftime("%I:%M %p")
+
                 new_order = {
                     "order_id": order_id,
                     "customer": res_name,
                     "phone": res_phone,
+                    "email": res_email,
                     "table": selected_table,
+                    "time": time_formatted,
                     "order_type": "Dine-in",
                     "payment_method": selected_payment,
                     "items": st.session_state.cart,
                     "total": total_price,
-                    "date": str(datetime.date.today()),
+                    "date": str(res_date),
                     "status": "Order Received",
                 }
                 orders.append(new_order)
                 save_data(ORDERS_FILE, orders)
                 deduct_stock_for_order(st.session_state.cart)
 
+                # إنشاء رابط تنبيه الواتساب
+                rest_phone = app_settings.get("phone", "").replace(" ", "").replace("+", "")
+                msg = f"مرحباً! تم تأكيد حجز طاولة #{selected_table} باسم {res_name} بتاريخ {res_date} الساعة {time_formatted}. سيتم تذكيركم بالموعد قبل الحضور بساعة."
+                whatsapp_url = f"https://wa.me/{rest_phone}?text={urllib.parse.quote(msg)}"
+
+                st.success(f"تم حجز الطاولة #{selected_table} بنجاح!")
+                st.info(f"📧 سيتم إرسال إشعار تذكير إلى إيميلك: {res_email} قبل موعد الحضور بساعة ({time_formatted}).")
+                st.markdown(f"📲 [**إرسال تفاصيل الفاتورة والحجز إلى إدارة المطعم عبر واتساب**]({whatsapp_url})", unsafe_allow_html=True)
+
                 st.session_state.cart = {}
                 st.session_state.my_order_ids.append(order_id)
+                time.sleep(2)
                 st.session_state.current_page = "my_orders_page"
                 update_url_params()
                 st.rerun()
             else:
-                st.warning("Please fill in all details (Name, Phone, Table)!")
+                st.warning("رجاء إدخال جميع البيانات واختيار طاولة متاحة!")
 
     elif st.session_state.current_page == "delivery_page":
-        st.title(f"🛵 Delivery Details")
+        st.title(f"🛵 Delivery Details / تفاصيل الدليفري")
         del_name = st.text_input("Your Name")
         del_address = st.text_area("Delivery Address")
         del_phone = st.text_input("Phone Number")
@@ -905,7 +948,6 @@ elif st.session_state.current_page in [
         st.title(f"🛍️ {translate_text('My Orders / طلباتي', lang)}")
         all_orders = load_data(ORDERS_FILE)
         
-        # تجلب الطلبات الخاصة بالجلسة الحالية، أو آخر طلبات إذا لم يوجد معرّف
         user_order_ids = st.session_state.my_order_ids
         if user_order_ids:
             my_orders = [o for o in all_orders if o.get("order_id") in user_order_ids]
@@ -915,27 +957,31 @@ elif st.session_state.current_page in [
         if not my_orders:
             st.info("لا توجد لديك أي طلبات حالياً / No orders found.")
         else:
-            active_orders = [o for o in my_orders if o.get("status") != "Delivered"]
-            completed_orders = [o for o in my_orders if o.get("status") == "Delivered"]
+            # تحديد اكتمال الطلب بناءً على نوعه
+            active_orders = [o for o in my_orders if (o.get("order_type") == "Dine-in" and o.get("status") != "Served") or (o.get("order_type") != "Dine-in" and o.get("status") != "Delivered")]
+            completed_orders = [o for o in my_orders if (o.get("order_type") == "Dine-in" and o.get("status") == "Served") or (o.get("order_type") != "Dine-in" and o.get("status") == "Delivered")]
 
             tab_active, tab_completed = st.tabs([
                 "⏳ الطلبات قيد التنفيذ (Active Orders)",
                 "✅ الطلبات المنفذة (Completed Orders)"
             ])
 
-            # 1. الطلبات قيد التنفيذ (تتضمن التتبع والتفاصيل)
             with tab_active:
                 if active_orders:
                     for o in reversed(active_orders):
-                        st.subheader(f"Order #{o.get('order_id')}")
+                        order_type = o.get("order_type", "Delivery")
+                        st.subheader(f"Order #{o.get('order_id')} ({order_type})")
+                        
+                        # اختيار شريط التتبع المناسب لنوع الطلب
+                        stages = DINEIN_STAGES if order_type == "Dine-in" else DELIVERY_STAGES
                         current_status = o.get("status", "Order Received")
                         
-                        stage_idx = ORDER_STAGES.index(current_status) if current_status in ORDER_STAGES else 0
-                        progress_val = (stage_idx + 1) / len(ORDER_STAGES)
+                        stage_idx = stages.index(current_status) if current_status in stages else 0
+                        progress_val = (stage_idx + 1) / len(stages)
                         st.progress(progress_val)
                         
-                        cols_stages = st.columns(len(ORDER_STAGES))
-                        for i, stage in enumerate(ORDER_STAGES):
+                        cols_stages = st.columns(len(stages))
+                        for i, stage in enumerate(stages):
                             with cols_stages[i]:
                                 if i <= stage_idx:
                                     st.markdown(f"✅ **{stage}**")
@@ -947,7 +993,6 @@ elif st.session_state.current_page in [
                 else:
                     st.info("لا توجد طلبات قيد التنفيذ حالياً.")
 
-            # 2. الطلبات المنفذة (أرشيف الفواتير المنتهية)
             with tab_completed:
                 if completed_orders:
                     for o in reversed(completed_orders):
