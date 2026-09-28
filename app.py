@@ -526,11 +526,90 @@ elif st.session_state.current_page == "admin_page":
                         delete_menu_item(item["id"])
                         st.rerun()
 
+        # ==========================================
+        # 📈 Tab 4: Reports & Sales (المبيعات والأرباح التفصيلية)
+        # ==========================================
         with tab4:
-            st.header("Reports & Profits")
+            st.header("📈 Reports & Sales Analytics / تقارير المبيعات والأرباح")
+            
             orders = load_data(ORDERS_FILE)
-            total_rev = sum(o.get("total", 0) for o in orders)
-            st.metric("Total Revenue", f"{total_rev:.2f} AED")
+            menu_items = get_menu()
+            
+            # خريطة للتكلفة وسعر البيع بناءً على المنيو
+            cost_map = {}
+            price_map = {}
+            for item in menu_items:
+                cost_map[item["name"]] = float(item.get("cost", 0.0))
+                cost_map[translate_text(item["name"], lang)] = float(item.get("cost", 0.0))
+                price_map[item["name"]] = float(item.get("price", 0.0))
+                price_map[translate_text(item["name"], lang)] = float(item.get("price", 0.0))
+
+            # فلترة المبيعات بالتاريخ
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                start_date = st.date_input("From Date / من تاريخ", value=datetime.date.today() - datetime.timedelta(days=7))
+            with col_d2:
+                end_date = st.date_input("To Date / إلى تاريخ", value=datetime.date.today())
+
+            if orders:
+                # تجميع المبيعات المفلترة بالتاريخ
+                sales_summary = {}
+                filtered_total_revenue = 0.0
+
+                for o in orders:
+                    o_date_str = o.get("date", "")
+                    try:
+                        o_date = datetime.datetime.strptime(o_date_str, "%Y-%m-%d").date()
+                    except Exception:
+                        o_date = datetime.date.today()
+
+                    if start_date <= o_date <= end_date:
+                        items_dict = o.get("items", {})
+                        if isinstance(items_dict, dict):
+                            for item_name, qty in items_dict.items():
+                                qty = int(qty)
+                                if item_name not in sales_summary:
+                                    sales_summary[item_name] = 0
+                                sales_summary[item_name] += qty
+                        filtered_total_revenue += float(o.get("total", 0.0))
+
+                if sales_summary:
+                    table_rows = []
+                    total_period_profit = 0.0
+
+                    for item_name, qty_sold in sales_summary.items():
+                        unit_cost = cost_map.get(item_name, 0.0)
+                        unit_price = price_map.get(item_name, 0.0)
+                        
+                        total_item_revenue = unit_price * qty_sold
+                        total_item_cost = unit_cost * qty_sold
+                        item_profit = total_item_revenue - total_item_cost
+                        total_period_profit += item_profit
+
+                        table_rows.append({
+                            "Item Name / اسم الصنف": item_name,
+                            "Quantity Sold / الكمية المباعة": qty_sold,
+                            "Purchase Cost / تكلفة الشراء": f"{unit_cost:.2f} AED",
+                            "Selling Price / سعر البيع": f"{unit_price:.2f} AED",
+                            "Item Profit / ربح الصنف": f"{item_profit:.2f} AED",
+                        })
+
+                    df_sales = pd.DataFrame(table_rows)
+                    
+                    st.write("<br>", unsafe_allow_html=True)
+                    st.subheader("📊 Sales Breakdown / تفاصيل المبيعات للفترة المحدد")
+                    st.dataframe(df_sales, use_container_width=True)
+
+                    st.markdown("---")
+                    col_m1, col_m2 = st.columns(2)
+                    with col_m1:
+                        st.metric("Total Revenue / إجمالي المبيعات", f"{filtered_total_revenue:.2f} AED")
+                    with col_m2:
+                        st.metric("Total Profit / إجمالي ربح الفترة", f"{total_period_profit:.2f} AED")
+                else:
+                    st.info("No sales found for the selected date range.")
+            else:
+                st.info("No sales data recorded yet.")
 
         with tab5:
             st.header("⚙️ General Settings / الإعدادات العامة")
