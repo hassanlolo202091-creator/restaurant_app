@@ -198,12 +198,18 @@ st.markdown(
         background-attachment: fixed;
     }}
 
-    input, .stNumberInput input, div[data-baseweb="input"] input {{
+    input, .stNumberInput input, div[data-baseweb="input"] input, div[data-baseweb="calendar"] input, input[type="date"] {{
         direction: ltr !important;
         font-family: Arial, Helvetica, sans-serif !important;
         color: #000000 !important;
         background-color: #FFFFFF !important;
         border-radius: 8px !important;
+    }}
+
+    /* ضبط لون نصوص اختيار التاريخ باللون الأسود */
+    div[data-testid="stDateInput"] input {{
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
     }}
 
     [data-testid="stSidebar"] {{
@@ -233,7 +239,6 @@ st.markdown(
         transform: translateY(-2px) scale(1.02) !important;
     }}
 
-    /* الفاتورة الحرارية الأنيقة */
     .receipt-box {{
         background-color: #FFFFFF !important;
         color: #000000 !important;
@@ -527,7 +532,7 @@ elif st.session_state.current_page == "admin_page":
                         st.rerun()
 
         # ==========================================
-        # 📈 Tab 4: Reports & Sales (المبيعات والأرباح التفصيلية)
+        # 📈 Tab 4: Reports & Sales Analytics
         # ==========================================
         with tab4:
             st.header("📈 Reports & Sales Analytics / تقارير المبيعات والأرباح")
@@ -535,7 +540,6 @@ elif st.session_state.current_page == "admin_page":
             orders = load_data(ORDERS_FILE)
             menu_items = get_menu()
             
-            # خريطة للتكلفة وسعر البيع بناءً على المنيو
             cost_map = {}
             price_map = {}
             for item in menu_items:
@@ -544,7 +548,6 @@ elif st.session_state.current_page == "admin_page":
                 price_map[item["name"]] = float(item.get("price", 0.0))
                 price_map[translate_text(item["name"], lang)] = float(item.get("price", 0.0))
 
-            # فلترة المبيعات بالتاريخ
             col_d1, col_d2 = st.columns(2)
             with col_d1:
                 start_date = st.date_input("From Date / من تاريخ", value=datetime.date.today() - datetime.timedelta(days=7))
@@ -552,7 +555,6 @@ elif st.session_state.current_page == "admin_page":
                 end_date = st.date_input("To Date / إلى تاريخ", value=datetime.date.today())
 
             if orders:
-                # تجميع المبيعات المفلترة بالتاريخ
                 sales_summary = {}
                 filtered_total_revenue = 0.0
 
@@ -595,6 +597,8 @@ elif st.session_state.current_page == "admin_page":
                         })
 
                     df_sales = pd.DataFrame(table_rows)
+                    # تعديل الترقيم ليبدأ من 1 بدلاً من 0
+                    df_sales.index = range(1, len(df_sales) + 1)
                     
                     st.write("<br>", unsafe_allow_html=True)
                     st.subheader("📊 Sales Breakdown / تفاصيل المبيعات للفترة المحدد")
