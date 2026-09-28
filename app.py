@@ -77,7 +77,7 @@ DEFAULT_SETTINGS = {
         "cart_page": "https://images.unsplash.com/photo-1556742049-0a67d5193911?q=80&w=1920",
         "reservation_page": "https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?q=80&w=1920",
         "delivery_page": "https://images.unsplash.com/photo-1526367790999-0150786686a2?q=80&w=1920",
-        "track_orders_page": "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=1920",
+        "my_orders_page": "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=1920",
         "contact_page": "https://images.unsplash.com/photo-1423666639041-f56000c27a9a?q=80&w=1920",
         "admin_page": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=1920",
     }
@@ -177,8 +177,8 @@ if "cart" not in st.session_state:
     except Exception:
         st.session_state.cart = {}
 
-if "last_order_id" not in st.session_state:
-    st.session_state.last_order_id = query_params.get("order_id", None)
+if "my_order_ids" not in st.session_state:
+    st.session_state.my_order_ids = []
 
 
 app_settings = get_settings()
@@ -206,7 +206,6 @@ st.markdown(
         border-radius: 8px !important;
     }}
 
-    /* إجبار إظهار جميع نصوص وتنبيهات محدد التاريخ باللون الأسود */
     div[data-testid="stDateInput"] * {{
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
@@ -222,7 +221,6 @@ st.markdown(
         color: #000000 !important;
     }}
 
-    /* إجبار نصوص وإرشادات زر تحميل الصور (File Uploader) على اللون الأسود الواضح */
     div[data-testid="stFileUploader"] * {{
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
@@ -370,8 +368,6 @@ def update_url_params():
         params["page"] = st.session_state.current_page
     if st.session_state.cart:
         params["cart"] = json.dumps(st.session_state.cart)
-    if st.session_state.last_order_id:
-        params["order_id"] = st.session_state.last_order_id
 
     st.query_params.clear()
     for k, v in params.items():
@@ -437,8 +433,8 @@ elif st.session_state.current_page == "main_menu":
             st.rerun()
 
     with col3:
-        if st.button(f"📍 {translate_text('Track Orders', lang)}", use_container_width=True, type="secondary"):
-            st.session_state.current_page = "track_orders_page"
+        if st.button(f"🛍️ {translate_text('My Orders / طلباتي', lang)}", use_container_width=True, type="secondary"):
+            st.session_state.current_page = "my_orders_page"
             update_url_params()
             st.rerun()
         st.write("<br>", unsafe_allow_html=True)
@@ -566,9 +562,6 @@ elif st.session_state.current_page == "admin_page":
                         delete_menu_item(item["id"])
                         st.rerun()
 
-        # ==========================================
-        # 📈 Tab 4: Reports & Sales Analytics
-        # ==========================================
         with tab4:
             st.header("📈 Reports & Sales Analytics / تقارير المبيعات والأرباح")
             
@@ -752,7 +745,7 @@ elif st.session_state.current_page in [
     "delivery_page",
     "reservation_page",
     "cart_page",
-    "track_orders_page",
+    "my_orders_page",
     "contact_page",
 ]:
     lang = st.session_state.app_language
@@ -860,8 +853,8 @@ elif st.session_state.current_page in [
                 deduct_stock_for_order(st.session_state.cart)
 
                 st.session_state.cart = {}
-                st.session_state.last_order_id = order_id
-                st.session_state.current_page = "track_orders_page"
+                st.session_state.my_order_ids.append(order_id)
+                st.session_state.current_page = "my_orders_page"
                 update_url_params()
                 st.rerun()
             else:
@@ -898,39 +891,70 @@ elif st.session_state.current_page in [
                 deduct_stock_for_order(st.session_state.cart)
 
                 st.session_state.cart = {}
-                st.session_state.last_order_id = order_id
-                st.session_state.current_page = "track_orders_page"
+                st.session_state.my_order_ids.append(order_id)
+                st.session_state.current_page = "my_orders_page"
                 update_url_params()
                 st.rerun()
             else:
                 st.warning("Please fill in all details (Name, Address, Phone)!")
 
-    elif st.session_state.current_page == "track_orders_page":
-        st.title(f"📍 Track Order & Receipt")
-        orders = load_data(ORDERS_FILE)
-        if orders:
-            last_id = st.session_state.last_order_id
-            current_order = next((o for o in orders if o.get("order_id") == last_id), orders[-1])
-            
-            current_status = current_order.get("status", "Order Received")
-            st.subheader(f"Current Status: {current_status}")
-            
-            stage_idx = ORDER_STAGES.index(current_status) if current_status in ORDER_STAGES else 0
-            progress_val = (stage_idx + 1) / len(ORDER_STAGES)
-            st.progress(progress_val)
-            
-            cols_stages = st.columns(len(ORDER_STAGES))
-            for i, stage in enumerate(ORDER_STAGES):
-                with cols_stages[i]:
-                    if i <= stage_idx:
-                        st.markdown(f"✅ **{stage}**")
-                    else:
-                        st.markdown(f"⚪ {stage}")
-            
-            st.markdown("---")
-            st.markdown(generate_receipt_html(current_order), unsafe_allow_html=True)
+    # ==========================================
+    # 🛍️ صفحة طلباتي (My Orders)
+    # ==========================================
+    elif st.session_state.current_page == "my_orders_page":
+        st.title(f"🛍️ {translate_text('My Orders / طلباتي', lang)}")
+        all_orders = load_data(ORDERS_FILE)
+        
+        # تجلب الطلبات الخاصة بالجلسة الحالية، أو آخر طلبات إذا لم يوجد معرّف
+        user_order_ids = st.session_state.my_order_ids
+        if user_order_ids:
+            my_orders = [o for o in all_orders if o.get("order_id") in user_order_ids]
         else:
-            st.info("No active orders to track.")
+            my_orders = all_orders[-3:] if all_orders else []
+
+        if not my_orders:
+            st.info("لا توجد لديك أي طلبات حالياً / No orders found.")
+        else:
+            active_orders = [o for o in my_orders if o.get("status") != "Delivered"]
+            completed_orders = [o for o in my_orders if o.get("status") == "Delivered"]
+
+            tab_active, tab_completed = st.tabs([
+                "⏳ الطلبات قيد التنفيذ (Active Orders)",
+                "✅ الطلبات المنفذة (Completed Orders)"
+            ])
+
+            # 1. الطلبات قيد التنفيذ (تتضمن التتبع والتفاصيل)
+            with tab_active:
+                if active_orders:
+                    for o in reversed(active_orders):
+                        st.subheader(f"Order #{o.get('order_id')}")
+                        current_status = o.get("status", "Order Received")
+                        
+                        stage_idx = ORDER_STAGES.index(current_status) if current_status in ORDER_STAGES else 0
+                        progress_val = (stage_idx + 1) / len(ORDER_STAGES)
+                        st.progress(progress_val)
+                        
+                        cols_stages = st.columns(len(ORDER_STAGES))
+                        for i, stage in enumerate(ORDER_STAGES):
+                            with cols_stages[i]:
+                                if i <= stage_idx:
+                                    st.markdown(f"✅ **{stage}**")
+                                else:
+                                    st.markdown(f"⚪ {stage}")
+                        
+                        st.markdown(generate_receipt_html(o), unsafe_allow_html=True)
+                        st.markdown("---")
+                else:
+                    st.info("لا توجد طلبات قيد التنفيذ حالياً.")
+
+            # 2. الطلبات المنفذة (أرشيف الفواتير المنتهية)
+            with tab_completed:
+                if completed_orders:
+                    for o in reversed(completed_orders):
+                        st.markdown(generate_receipt_html(o), unsafe_allow_html=True)
+                        st.markdown("---")
+                else:
+                    st.info("لا توجد طلبات مكتملة بعد.")
 
     elif st.session_state.current_page == "contact_page":
         st.title(f"📞 Contact Us")
