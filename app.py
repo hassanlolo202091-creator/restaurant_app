@@ -86,7 +86,6 @@ DEFAULT_SETTINGS = {
 
 ALL_TABLES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
-# مراحل التتبع حسب نوع الطلب
 DELIVERY_STAGES = ["Order Received", "Preparing", "Out for Delivery", "Delivered"]
 DINEIN_STAGES = ["Order Received", "Table Reserved", "Served"]
 
@@ -129,7 +128,6 @@ def get_available_tables():
     orders = load_data(ORDERS_FILE)
     reservations = load_data(RESERVATIONS_FILE)
     
-    # حصر الطاولات المحجوزة حالياً من الأوردرات النشطة أوReservations
     busy_tables = [o.get("table") for o in orders if o.get("order_type") == "Dine-in" and o.get("status") != "Served" and o.get("table")]
     reserved_tables = [r.get("table_number") for r in reservations if "table_number" in r]
     
@@ -209,6 +207,7 @@ st.markdown(
         background-attachment: fixed;
     }}
 
+    /* إصلاح حقول الإدخال النصية والرقمية */
     input, .stNumberInput input, div[data-baseweb="input"] input {{
         direction: ltr !important;
         font-family: Arial, Helvetica, sans-serif !important;
@@ -217,11 +216,23 @@ st.markdown(
         border-radius: 8px !important;
     }}
 
+    /* إصلاح نصوص وأرقام اختيار الوقت (st.time_input) بالتفصيل لتجاوز اللون الأبيض */
+    div[data-testid="stTimeInput"] * {{
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+    }}
+    div[data-testid="stTimeInput"] input {{
+        background-color: #FFFFFF !important;
+        font-weight: bold !important;
+        opacity: 1 !important;
+        direction: ltr !important;
+    }}
+
+    /* إصلاح نصوص وأرقام اختيار التاريخ (st.date_input) */
     div[data-testid="stDateInput"] * {{
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
     }}
-
     div[data-testid="stDateInput"] input {{
         background-color: #FFFFFF !important;
         font-weight: bold !important;
@@ -232,6 +243,7 @@ st.markdown(
         color: #000000 !important;
     }}
 
+    /* إصلاح زر ونصوص رفع الصور (st.file_uploader) */
     div[data-testid="stFileUploader"] * {{
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
@@ -885,7 +897,6 @@ elif st.session_state.current_page in [
                 save_data(ORDERS_FILE, orders)
                 deduct_stock_for_order(st.session_state.cart)
 
-                # إنشاء رابط تنبيه الواتساب
                 rest_phone = app_settings.get("phone", "").replace(" ", "").replace("+", "")
                 msg = f"مرحباً! تم تأكيد حجز طاولة #{selected_table} باسم {res_name} بتاريخ {res_date} الساعة {time_formatted}. سيتم تذكيركم بالموعد قبل الحضور بساعة."
                 whatsapp_url = f"https://wa.me/{rest_phone}?text={urllib.parse.quote(msg)}"
@@ -957,7 +968,6 @@ elif st.session_state.current_page in [
         if not my_orders:
             st.info("لا توجد لديك أي طلبات حالياً / No orders found.")
         else:
-            # تحديد اكتمال الطلب بناءً على نوعه
             active_orders = [o for o in my_orders if (o.get("order_type") == "Dine-in" and o.get("status") != "Served") or (o.get("order_type") != "Dine-in" and o.get("status") != "Delivered")]
             completed_orders = [o for o in my_orders if (o.get("order_type") == "Dine-in" and o.get("status") == "Served") or (o.get("order_type") != "Dine-in" and o.get("status") == "Delivered")]
 
@@ -972,7 +982,6 @@ elif st.session_state.current_page in [
                         order_type = o.get("order_type", "Delivery")
                         st.subheader(f"Order #{o.get('order_id')} ({order_type})")
                         
-                        # اختيار شريط التتبع المناسب لنوع الطلب
                         stages = DINEIN_STAGES if order_type == "Dine-in" else DELIVERY_STAGES
                         current_status = o.get("status", "Order Received")
                         
