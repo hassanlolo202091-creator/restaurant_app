@@ -198,7 +198,7 @@ st.markdown(
         background-attachment: fixed;
     }}
 
-    input, .stNumberInput input, div[data-baseweb="input"] input, div[data-baseweb="calendar"] input, input[type="date"] {{
+    input, .stNumberInput input, div[data-baseweb="input"] input {{
         direction: ltr !important;
         font-family: Arial, Helvetica, sans-serif !important;
         color: #000000 !important;
@@ -206,10 +206,13 @@ st.markdown(
         border-radius: 8px !important;
     }}
 
-    /* ضبط لون نصوص اختيار التاريخ باللون الأسود */
-    div[data-testid="stDateInput"] input {{
+    /* تحسين إجبار لون التاريخ باللون الأسود الداكن والقوي */
+    div[data-testid="stDateInput"] input, 
+    div[data-baseweb="input"] input, 
+    div[data-baseweb="base-input"] input {{
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
+        font-weight: bold !important;
     }}
 
     [data-testid="stSidebar"] {{
@@ -597,7 +600,6 @@ elif st.session_state.current_page == "admin_page":
                         })
 
                     df_sales = pd.DataFrame(table_rows)
-                    # تعديل الترقيم ليبدأ من 1 بدلاً من 0
                     df_sales.index = range(1, len(df_sales) + 1)
                     
                     st.write("<br>", unsafe_allow_html=True)
