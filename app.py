@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 from translate import Translator
 
-# استدعاء آمن لمكتبات الباركود لتجنب توقف التطبيق على السيرفر
+# استدعاء آمن لمكتبات الباركود
 try:
     import qrcode
     from PIL import Image
@@ -233,7 +233,6 @@ st.markdown(
         transform: translateY(-2px) scale(1.02) !important;
     }}
 
-    /* تصميم الفاتورة الحرارية المحسن والمحمي من أخطاء التنسيق */
     .receipt-box {{
         background-color: #FFFFFF !important;
         color: #000000 !important;
@@ -287,7 +286,6 @@ def translate_text(text, target_lang):
 def generate_receipt_html(order):
     settings = get_settings()
     
-    # بناء عناصر المنيو في الفاتورة بنظافة
     items_list_html = ""
     items_dict = order.get("items", {})
     if isinstance(items_dict, dict):
@@ -525,7 +523,7 @@ elif st.session_state.current_page == "admin_page":
             st.metric("Total Revenue", f"{total_rev:.2f} AED")
 
         with tab5:
-            st.header("⚙️ General Settings / الإعدادات العامة")
+            st.header("General Settings / الإعدادات العامة")
             
             set_tab1, set_tab2, set_tab3, set_tab4 = st.tabs([
                 "🏪 Profile",
@@ -620,7 +618,7 @@ elif st.session_state.current_page == "admin_page":
 
 
 # ==========================================
-# 5. صفحات الخدمة
+# 5. صفحات الخدمة للعميل
 # ==========================================
 elif st.session_state.current_page in [
     "food_menu_page",
@@ -639,8 +637,12 @@ elif st.session_state.current_page in [
 
     st.write("---")
 
-    if st.session_state.current_page == "food_menu_page":
+    elif st.session_state.current_page == "food_menu_page":
         st.title(f"📜 {translate_text('Food Menu', lang)}")
+        
+        if "just_added_id" not in st.session_state:
+            st.session_state.just_added_id = None
+
         for item in get_menu():
             display_name = translate_text(item["name"], lang)
             c_img, c1, c2 = st.columns([1.5, 4, 2])
@@ -651,13 +653,16 @@ elif st.session_state.current_page in [
                 st.write(f"{item['price']} AED")
             with c2:
                 qty = st.number_input("Qty", min_value=1, value=1, key=f"qty_{item['id']}")
-                if st.button(translate_text("Add to Cart", lang), key=f"btn_{item['id']}", type="primary"):
+                
+                # تغيير اسم ولون الزرار تفاعلياً للصنف المضاف
+                is_just_added = (st.session_state.just_added_id == item["id"])
+                btn_label = "✅ Added! / تمت الإضافة" if is_just_added else translate_text("Add to Cart", lang)
+                btn_type = "secondary" if is_just_added else "primary"
+                
+                if st.button(btn_label, key=f"btn_{item['id']}", type=btn_type):
                     st.session_state.cart[display_name] = st.session_state.cart.get(display_name, 0) + int(qty)
+                    st.session_state.just_added_id = item["id"]
                     update_url_params()
-                    
-                    # إشعار نجاح فوري للزبون
-                    st.toast(f"✅ Added {display_name} (x{qty}) to cart!")
-                    st.success(f"Added {display_name} to cart!")
                     st.rerun()
             st.markdown("---")
 
@@ -761,7 +766,6 @@ elif st.session_state.current_page in [
                 save_data(ORDERS_FILE, orders)
                 deduct_stock_for_order(st.session_state.cart)
 
-                # إفراغ السلة وتحويل الصفحة المباشر لـ Track Order
                 st.session_state.cart = {}
                 st.session_state.last_order_id = order_id
                 st.session_state.current_page = "track_orders_page"
@@ -777,7 +781,6 @@ elif st.session_state.current_page in [
             last_id = st.session_state.last_order_id
             current_order = next((o for o in orders if o.get("order_id") == last_id), orders[-1])
             
-            st.success("🎉 Order submitted successfully!")
             st.subheader(f"Current Status: {current_order.get('status')}")
             st.markdown(generate_receipt_html(current_order), unsafe_allow_html=True)
         else:
