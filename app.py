@@ -777,7 +777,6 @@ elif st.session_state.current_page in [
             last_id = st.session_state.last_order_id
             current_order = next((o for o in orders if o.get("order_id") == last_id), orders[-1])
             
-            # العرض التفاعلي الأصلي لمراحل الأوردر الأربعة
             current_status = current_order.get("status", "Order Received")
             st.subheader(f"Current Status: {current_status}")
             
