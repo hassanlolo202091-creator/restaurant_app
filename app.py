@@ -206,22 +206,19 @@ st.markdown(
         border-radius: 8px !important;
     }}
 
-    /* حل الشفافية وإظهار نصوص حقول التاريخ بالأسود الداكن */
-    div[data-testid="stDateInput"] input {{
+    /* إصلاح لون تاريخ الإدخال والتقويم بالكامل لتجاوز القواعد العامة */
+    div[data-testid="stDateInput"] * {{
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
-        opacity: 1 !important;
+    }}
+
+    div[data-testid="stDateInput"] input {{
+        background-color: #FFFFFF !important;
         font-weight: bold !important;
-        background-color: #FFFFFF !important;
+        opacity: 1 !important;
     }}
 
-    div[data-testid="stDateInput"] div[data-baseweb="input"] {{
-        background-color: #FFFFFF !important;
-        border-radius: 8px !important;
-    }}
-
-    div[data-testid="stDateInput"] svg {{
-        fill: #000000 !important;
+    div[data-baseweb="popover"] * {{
         color: #000000 !important;
     }}
 
