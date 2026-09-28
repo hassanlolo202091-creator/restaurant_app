@@ -523,10 +523,20 @@ elif st.session_state.current_page == "admin_page":
 
             track_stock_opt = st.checkbox("Enable inventory tracking?")
             stock_qty_input = st.number_input("Stock Quantity", min_value=0, value=10) if track_stock_opt else 0
-            final_image_data = st.text_input("Image URL")
+            
+            # خيارات إضافة صورة المنتج (رابط أو رفع ملف)
+            uploaded_file = st.file_uploader("Upload Item Image / تحميل صورة للمنتج من الجهاز", type=["png", "jpg", "jpeg", "webp"])
+            final_image_data = st.text_input("Or Image URL / أو ضع رابط الصورة مباشر")
             
             if st.button("Add Item"):
                 if new_name_input:
+                    # تحويل الصورة المرفوعة إلى Base64 إن وجدت
+                    if uploaded_file is not None:
+                        bytes_data = uploaded_file.getvalue()
+                        base64_str = base64.b64encode(bytes_data).decode()
+                        mime_type = uploaded_file.type
+                        final_image_data = f"data:{mime_type};base64,{base64_str}"
+
                     add_menu_item(new_name_input, new_price_input, new_cost_input, track_stock_opt, stock_qty_input, final_image_data)
                     st.success("Item added!")
                     st.rerun()
